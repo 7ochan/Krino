@@ -1,12 +1,13 @@
 # Krino
 
-Krino is a private, local-first web test runner. This first milestone provides a versioned JSON test definition, a TypeScript CLI, a child-process Playwright worker, and a tiny local fixture application. Browser execution is local; no UI, database, remote agent, or hosted service is included.
+Krino is a private, local-first web test automation application. Milestone 1 provides a versioned JSON test definition, a TypeScript CLI, a child-process Playwright worker, and a tiny local fixture application. Milestone 2 adds a reusable application service, local SQLite run/test history, and a loopback-only Fastify API. Browser execution remains local; there is no UI, remote agent, or hosted service.
 
 ## Prerequisites
 
 - Node.js 22.13 or newer (Node 22/24 LTS lines are supported)
 - pnpm 11.13.1 (pinned by `packageManager` in `package.json`)
 - Chromium dependencies supported by Playwright on your operating system
+- Native build tools required by `better-sqlite3` on platforms without a compatible prebuilt binary
 
 ## Install
 
@@ -15,6 +16,8 @@ pnpm install
 pnpm exec playwright install chromium
 pnpm build
 ```
+
+The SQLite file is created at `.krino/krino.sqlite`; run artifacts remain under `.krino/artifacts/<run-id>/`. Both are ignored by Git. Set `KRINO_DATA_DIR` to move the local data directory, or `KRINO_DB_PATH` to override only the database file path.
 
 ## Run the fixture and tests
 
@@ -36,6 +39,8 @@ To exercise failure reporting, run the deliberately failing example:
 pnpm krino run examples/login-failing.json
 ```
 
+The CLI uses the same application execution service as the API. It persists/updates the test definition by its test ID and records each run in SQLite while keeping the existing exit codes and artifact output.
+
 The test suite starts an ephemeral local fixture automatically:
 
 ```sh
@@ -48,6 +53,45 @@ Each CLI execution receives one run ID, shared by the worker, result, and its di
 
 The worker's browser accesses localhost and private-network targets directly from this machine. The current browser origin filter is a convenience guard for ordinary requests, not a complete network/security sandbox (for example, it does not establish a trust boundary for service workers or WebSockets). Only trusted local test definitions should be run.
 
+## Local API and persistence
+
+Start the API with:
+
+```sh
+pnpm api
+```
+
+It binds only to `127.0.0.1` (port `4174` by default; override with `KRINO_PORT`). It does not fetch test target URLs itself: the child browser worker accesses localhost/private targets directly from this machine. The API is a local single-user interface, not an authenticated or network-exposed service.
+
+Available endpoints:
+
+```text
+GET    /health
+GET    /tests
+POST   /tests
+GET    /tests/:id
+PUT    /tests/:id
+DELETE /tests/:id
+POST   /tests/:id/runs
+GET    /runs/:id
+GET    /tests/:id/runs
+```
+
+`POST /tests` and `PUT /tests/:id` accept the same versioned JSON definition used by the CLI. A synchronous `POST /tests/:id/runs` response includes the persisted run and ordered step results. Test definitions are stored as validated JSON; SQLite separately stores test metadata, immutable run definition snapshots, ordered step outcomes, errors, and artifact metadata. Deleting a test keeps its run history; historical runs then have a null `testId`.
+
+Example:
+
+```sh
+curl -sS http://127.0.0.1:4174/health
+curl -sS -X POST http://127.0.0.1:4174/tests \
+  -H 'content-type: application/json' \
+  --data-binary @examples/login.json
+curl -sS -X POST http://127.0.0.1:4174/tests/login-smoke/runs
+curl -sS http://127.0.0.1:4174/runs/<run-id>
+```
+
+Artifact responses expose metadata/filenames, not arbitrary filesystem paths. There is no generic file-serving endpoint. The on-disk run directory and `result.json` behavior are unchanged.
+
 ## Current limits
 
-This milestone supports only `navigate`, `fill`, `click`, `assertVisible`, and `assertText`; one Chromium run at a time; and JSON-authored tests. It does not include a management UI, database, persistent queue, remote agent, CI integration, custom addons, AI, or locator healing.
+This milestone supports only `navigate`, `fill`, `click`, `assertVisible`, and `assertText`; one Chromium run at a time; and JSON-authored tests. Milestone 2 adds local persistence and a synchronous API but not a management UI, background queue, remote agent, CI integration, custom addons, AI, or locator healing.

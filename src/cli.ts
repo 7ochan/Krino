@@ -1,15 +1,11 @@
 #!/usr/bin/env node
-import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { runInChild } from "./child-runner.js";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { createApplication } from "./application/create-application.js";
 import { parseTestDefinition } from "./definition.js";
 import type { RunResult } from "./engine.js";
 
 const defaultArtifactsRoot = resolve(process.cwd(), ".krino", "artifacts");
-const workerPath = resolve(dirname(fileURLToPath(import.meta.url)), "worker.js");
-
 function usage(): never {
   process.stderr.write("Usage: krino run <test-definition.json> [--artifacts-dir <directory>]\n");
   process.exit(2);
@@ -52,26 +48,27 @@ async function main(): Promise<void> {
     return;
   }
 
-  const runId = randomUUID();
-  const artifactsDirectory = resolve(artifactsRoot, runId);
-  await mkdir(artifactsDirectory, { recursive: true });
-  process.stdout.write(`RUNNING: ${definition.name} (${runId})\n`);
-
-  const result = await runInChild({
-    runId,
-    definition,
-    artifactsDirectory,
-    workerPath,
-    onMessage(message) {
+  let artifactsDirectory = artifactsRoot;
+  const application = createApplication({
+    artifactsDirectory: artifactsRoot,
+    onRunCreated(runId, activeDefinition, runDirectory) {
+      artifactsDirectory = runDirectory;
+      process.stdout.write(`RUNNING: ${activeDefinition.name} (${runId})\n`);
+    },
+    onWorkerMessage(message) {
       if (message.type === "STEP_FINISHED") {
         const marker = message.result.status === "passed" ? "✓" : message.result.status === "failed" ? "✗" : "–";
         process.stdout.write(`${marker} ${message.result.stepId}\n`);
       }
     },
   });
-  await writeFile(resolve(artifactsDirectory, "result.json"), `${JSON.stringify(result, null, 2)}\n`, "utf8");
-  printResult(result, artifactsDirectory);
-  process.exitCode = result.status === "passed" ? 0 : result.status === "failed" ? 1 : 2;
+  try {
+    const { result } = await application.execution.runDefinition(definition);
+    printResult(result, artifactsDirectory);
+    process.exitCode = result.status === "passed" ? 0 : result.status === "failed" ? 1 : 2;
+  } finally {
+    application.close();
+  }
 }
 
 main().catch((error: unknown) => {
