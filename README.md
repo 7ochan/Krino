@@ -99,6 +99,10 @@ Artifact responses expose metadata/filenames, not arbitrary filesystem paths. Th
 
 The UI is available at `http://127.0.0.1:5173` while `pnpm dev` is running. It supports test list/create/edit/delete, the current registered actions and locators, synchronous runs, history, and run reports. `pnpm test` covers backend, frontend, and local Chromium UI E2E tests; `pnpm typecheck` and `pnpm build` cover backend and frontend. UI-only commands are also available as `pnpm ui:test`, `pnpm ui:typecheck`, and `pnpm ui:build`.
 
+## Browser execution modes
+
+Headless is the default and runs the browser invisibly. Select Visible before running to launch a visible Chromium window on this desktop, useful for debugging and watching tests execute. Visible runs are intended for local desktop execution and are recorded in the run report.
+
 ## Current limits
 
 This milestone supports only the registered actions (`navigate`, `fill`, `click`, `assertVisible`, and `assertText`); one Chromium run at a time; and versioned JSON definitions authored through a small form. There is no background queue, remote agent, CI integration, custom addons, AI, or locator healing.

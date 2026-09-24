@@ -12,6 +12,7 @@ export interface RunResponse {
   testId: string | null;
   testName: string;
   definition: StoredRun["definition"];
+  browserMode: StoredRun["browserMode"];
   status: RunResult["status"] | "running";
   startedAt: string;
   finishedAt: string | null;
@@ -32,6 +33,7 @@ export function toRunResponse(run: StoredRun): RunResponse {
     testId: run.testId,
     testName: run.testName,
     definition: run.definition,
+    browserMode: run.browserMode,
     status: run.status,
     startedAt: run.startedAt,
     finishedAt: run.finishedAt,

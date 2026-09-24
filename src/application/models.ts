@@ -1,5 +1,6 @@
 import type { RunResult, StepResult } from "../engine.js";
 import type { TestDefinition } from "../definition.js";
+import type { BrowserMode } from "../browser/port.js";
 
 export interface TestSummary {
   id: string;
@@ -26,6 +27,7 @@ export interface StoredRun {
   testId: string | null;
   testName: string;
   definition: TestDefinition;
+  browserMode: BrowserMode;
   status: RunResult["status"] | "running";
   startedAt: string;
   finishedAt: string | null;
@@ -47,7 +49,7 @@ export interface TestRepository {
 }
 
 export interface RunRepository {
-  create(input: { id: string; testId: string; testName: string; definition: TestDefinition; startedAt: string }): void;
+  create(input: { id: string; testId: string; testName: string; definition: TestDefinition; browserMode: BrowserMode; startedAt: string }): void;
   finish(result: RunResult, artifactRoot: string, resultArtifactError?: string): RunResult;
   get(id: string): StoredRun | null;
   listForTest(testId: string, limit?: number): StoredRun[];

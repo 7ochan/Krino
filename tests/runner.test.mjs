@@ -10,6 +10,8 @@ const repositoryRoot = resolve(import.meta.dirname, '..');
 const { parseTestDefinition, DefinitionValidationError } = await import(pathToFileURL(join(repositoryRoot, 'dist', 'definition.js')));
 const { executeDefinition } = await import(pathToFileURL(join(repositoryRoot, 'dist', 'engine.js')));
 const { runInChild, workerWatchdogTimeoutMs, WORKER_STARTUP_TIMEOUT_MS, WORKER_CLEANUP_GRACE_MS } = await import(pathToFileURL(join(repositoryRoot, 'dist', 'child-runner.js')));
+const { runRequestSchema } = await import(pathToFileURL(join(repositoryRoot, 'dist', 'protocol.js')));
+const { playwrightLaunchOptions } = await import(pathToFileURL(join(repositoryRoot, 'dist', 'browser', 'playwright-adapter.js')));
 const { startFixtureServer } = await import(pathToFileURL(join(repositoryRoot, 'dist', 'fixture', 'server.js')));
 let fixture;
 let temporaryDirectory;
@@ -72,6 +74,17 @@ test('accepts a valid version 1 definition', () => {
   const parsed = parseTestDefinition(sampleDefinition());
   assert.equal(parsed.schemaVersion, 1);
   assert.equal(parsed.steps.length, 6);
+});
+
+test('browser mode defaults to headless, accepts both modes, rejects invalid values, and maps to Chromium launch options', () => {
+  const request = { type: 'RUN_REQUEST', protocolVersion: 1, runId: 'mode-test', definition: sampleDefinition(), artifactsDirectory: temporaryDirectory };
+  assert.equal(runRequestSchema.parse(request).browserMode, 'headless');
+  assert.equal(runRequestSchema.parse({ ...request, browserMode: 'headless' }).browserMode, 'headless');
+  assert.equal(runRequestSchema.parse({ ...request, browserMode: 'headed' }).browserMode, 'headed');
+  assert.throws(() => runRequestSchema.parse({ ...request, browserMode: 'remote' }));
+  assert.deepEqual(playwrightLaunchOptions(), { headless: true, timeout: 30_000 });
+  assert.deepEqual(playwrightLaunchOptions('headless'), { headless: true, timeout: 30_000 });
+  assert.deepEqual(playwrightLaunchOptions('headed'), { headless: false, timeout: 30_000 });
 });
 
 test('rejects invalid definitions before browser execution', () => {
@@ -220,6 +233,21 @@ test('executes the genuine browser path, reports ordered passed steps, and exits
   assert.equal(result.runId, runDirectory);
   assert.deepEqual(result.steps.map((step) => step.stepId), ['open', 'email', 'password', 'sign-in', 'dashboard', 'welcome']);
   assert.ok(result.steps.every((step) => step.status === 'passed'));
+});
+
+const headedDisplayAvailable = process.platform === 'darwin' || Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY);
+test('runs a real headed Chromium execution against the local fixture', { skip: headedDisplayAvailable ? false : 'No desktop display is available for headed Chromium' }, async () => {
+  const definition = parseTestDefinition(sampleDefinition());
+  const runId = 'headed-fixture-run';
+  const result = await runInChild({
+    runId,
+    definition,
+    browserMode: 'headed',
+    artifactsDirectory: join(temporaryDirectory, runId),
+    workerPath: join(repositoryRoot, 'dist', 'worker.js'),
+  });
+  assert.equal(result.status, 'passed', result.error?.message);
+  assert.equal(result.steps.length, 6);
 });
 
 test('failed assertion stops execution, skips remaining steps, captures screenshot and trace, exits nonzero, and cleans up child', async () => {

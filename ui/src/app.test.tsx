@@ -10,7 +10,7 @@ vi.mock("./api", async (importOriginal) => ({ ...(await importOriginal<typeof im
 
 const def = (name = "Login flow"): Definition => ({ schemaVersion: 1, id: "login-flow", name, target: { baseUrl: "http://127.0.0.1:4173", stepTimeoutMs: 10000, runTimeoutMs: 300000 }, steps: [{ id: "open-login", action: "navigate", url: "/login" }] });
 const record = (definition = def()): TestRecord => ({ ...definition, definition, schemaVersion: 1, createdAt: "2026-09-24T08:00:00.000Z", updatedAt: "2026-09-24T08:00:00.000Z" });
-const run: RunRecord = { id: "run-1", testId: "login-flow", testName: "Login flow", definition: def(), status: "passed", startedAt: "2026-09-24T08:00:00.000Z", finishedAt: "2026-09-24T08:00:01.000Z", durationMs: 990, steps: [{ stepId: "open-login", action: "navigate", status: "passed", startTime: "2026-09-24T08:00:00.000Z", endTime: "2026-09-24T08:00:01.000Z", durationMs: 990 }], artifacts: [{ type: "result", status: "created", filename: "result.json", createdAt: "2026-09-24T08:00:01.000Z" }] };
+const run: RunRecord = { id: "run-1", testId: "login-flow", testName: "Login flow", definition: def(), browserMode: "headless", status: "passed", startedAt: "2026-09-24T08:00:00.000Z", finishedAt: "2026-09-24T08:00:01.000Z", durationMs: 990, steps: [{ stepId: "open-login", action: "navigate", status: "passed", startTime: "2026-09-24T08:00:00.000Z", endTime: "2026-09-24T08:00:01.000Z", durationMs: 990 }], artifacts: [{ type: "result", status: "created", filename: "result.json", createdAt: "2026-09-24T08:00:01.000Z" }] };
 
 const mocked = vi.mocked(api);
 beforeEach(() => { window.history.replaceState({}, "", "/tests"); mocked.getTests.mockResolvedValue([]); mocked.getTestRuns.mockResolvedValue([]); mocked.getActions.mockResolvedValue(((["navigate", "fill", "click", "assertVisible", "assertText"].map((id) => ({ id, displayName: id }))) as ActionDescriptor[])); });
@@ -44,10 +44,22 @@ describe("Krino UI", () => {
     window.history.replaceState({}, "", "/tests/login-flow/edit"); const user = userEvent.setup();
     mocked.getTest.mockResolvedValue(record()); mocked.getTestRuns.mockResolvedValue([run]); mocked.updateTest.mockResolvedValue(record()); mocked.runTest.mockResolvedValue(run); mocked.getRun.mockResolvedValue(run);
     render(<App />); expect(await screen.findByText("Run history")).toBeInTheDocument(); expect(screen.getByText("run-1")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "▶ Save & run" })); await waitFor(() => expect(mocked.runTest).toHaveBeenCalledWith("login-flow"));
+    await user.click(screen.getByRole("button", { name: "▶ Save & run" })); await waitFor(() => expect(mocked.runTest).toHaveBeenCalledWith("login-flow", "headless"));
     await waitFor(() => expect(mocked.getRun).toHaveBeenCalledWith("run-1"));
     expect(await screen.findByText("Step results")).toBeInTheDocument(); expect(screen.getAllByText("PASSED")).toHaveLength(2);
     expect(screen.getByText("open-login")).toBeInTheDocument(); expect(screen.getByText("result.json")).toBeInTheDocument();
+  });
+
+  it("sends headed mode when Visible is selected and identifies it in the run report", async () => {
+    window.history.replaceState({}, "", "/tests/login-flow/edit"); const user = userEvent.setup();
+    const visibleRun = { ...run, browserMode: "headed" as const };
+    mocked.getTest.mockResolvedValue(record()); mocked.getTestRuns.mockResolvedValue([]); mocked.updateTest.mockResolvedValue(record()); mocked.runTest.mockResolvedValue(visibleRun); mocked.getRun.mockResolvedValue(visibleRun);
+    render(<App />); await screen.findByText("Run history");
+    await user.selectOptions(screen.getByLabelText("Browser mode"), "headed");
+    expect(screen.getByText("A Chromium window will open on this desktop.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "▶ Save & run" }));
+    await waitFor(() => expect(mocked.runTest).toHaveBeenCalledWith("login-flow", "headed"));
+    expect(await screen.findByText("Visible")).toBeInTheDocument();
   });
 
   it("shows failed run and step diagnostics", async () => {

@@ -1,0 +1,1 @@
+ALTER TABLE `runs` ADD `browser_mode` text DEFAULT 'headless' NOT NULL;

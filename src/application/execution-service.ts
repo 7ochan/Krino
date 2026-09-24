@@ -9,6 +9,7 @@ import type { RunResult } from "../engine.js";
 import { PROTOCOL_VERSION } from "../protocol.js";
 import type { RunRepository, StoredRun, TestRepository } from "./models.js";
 import type { WorkerMessage } from "../protocol.js";
+import { DEFAULT_BROWSER_MODE, type BrowserMode } from "../browser/port.js";
 import { NotFoundError } from "./errors.js";
 
 export interface ExecutionServiceOptions {
@@ -35,24 +36,24 @@ export class ExecutionService {
     this.executeWorker = options.executeWorker ?? runInChild;
   }
 
-  async runTest(testId: string): Promise<ExecutedRun> {
+  async runTest(testId: string, browserMode: BrowserMode = DEFAULT_BROWSER_MODE): Promise<ExecutedRun> {
     const test = this.options.tests.get(testId);
     if (!test) throw new NotFoundError(`Test "${testId}" was not found`);
-    return this.executeDefinition(test.definition);
+    return this.executeDefinition(test.definition, browserMode);
   }
 
-  async runDefinition(input: unknown): Promise<ExecutedRun> {
+  async runDefinition(input: unknown, browserMode: BrowserMode = DEFAULT_BROWSER_MODE): Promise<ExecutedRun> {
     const definition = parseTestDefinition(input);
     this.options.tests.upsert(definition);
-    return this.executeDefinition(definition);
+    return this.executeDefinition(definition, browserMode);
   }
 
-  private async executeDefinition(definition: TestDefinition): Promise<ExecutedRun> {
+  private async executeDefinition(definition: TestDefinition, browserMode: BrowserMode): Promise<ExecutedRun> {
     const runId = randomUUID();
     const startedAt = new Date().toISOString();
     const runArtifactsDirectory = resolve(this.options.artifactsDirectory, runId);
     await mkdir(runArtifactsDirectory, { recursive: true });
-    this.options.runs.create({ id: runId, testId: definition.id, testName: definition.name, definition, startedAt });
+    this.options.runs.create({ id: runId, testId: definition.id, testName: definition.name, definition, browserMode, startedAt });
     this.options.onRunCreated?.(runId, definition, runArtifactsDirectory);
 
     let result: RunResult;
@@ -60,6 +61,7 @@ export class ExecutionService {
       result = await this.executeWorker({
         runId,
         definition,
+        browserMode,
         artifactsDirectory: runArtifactsDirectory,
         workerPath: this.workerPath,
         ...(this.options.onWorkerMessage ? { onMessage: this.options.onWorkerMessage } : {}),

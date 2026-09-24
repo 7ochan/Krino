@@ -163,6 +163,7 @@ test('local UI creates, edits, runs, reports, retains run history on deletion, a
   await page.locator('.test-row').filter({ hasText: 'Krino UI E2E login edited' }).getByRole('button', { name: '▶ Run' }).click();
   await page.getByRole('heading', { name: 'Krino UI E2E login edited' }).waitFor();
   await page.locator('.run-status-block').getByText('PASSED').waitFor();
+  await page.locator('.run-summary').getByText('Headless').waitFor();
   const runUrl = page.url();
   const passingRunId = runUrl.split('/').at(-1);
   const resultStepIds = await page.locator('.result-main code').allTextContents();
@@ -201,4 +202,22 @@ test('local UI creates, edits, runs, reports, retains run history on deletion, a
   assert.match(await page.locator('.step-error').textContent(), /This text is intentionally missing/);
   assert.equal(await page.locator('.run-summary').getByText('ui-failing-e2e').count(), 1);
   assert.ok(passingRunId);
+});
+
+const headedDisplayAvailable = process.platform === 'darwin' || Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY);
+test('UI can launch a visible Chromium run and report its browser mode', { skip: headedDisplayAvailable ? false : 'No desktop display is available for headed Chromium', timeout: 45_000 }, async () => {
+  application.tests.create({
+    schemaVersion: 1,
+    id: 'headed-ui-e2e',
+    name: 'Visible browser fixture run',
+    target: { baseUrl: fixture.url, stepTimeoutMs: 4_000, runTimeoutMs: 30_000 },
+    steps: [{ id: 'open-login', action: 'navigate', url: '/login' }],
+  });
+  await page.goto(`${frontendUrl}/tests/headed-ui-e2e/edit`);
+  await page.getByLabel('Browser mode').selectOption('headed');
+  await page.getByText('A Chromium window will open on this desktop.').waitFor();
+  await page.getByRole('button', { name: '▶ Save & run' }).click();
+  await page.getByRole('heading', { name: 'Visible browser fixture run' }).waitFor();
+  await page.locator('.run-status-block').getByText('PASSED').waitFor();
+  await page.locator('.run-summary').getByText('Visible').waitFor();
 });

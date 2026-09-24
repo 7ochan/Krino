@@ -24,7 +24,7 @@ export interface StepResult {
 }
 export interface Artifact { type: "screenshot" | "trace" | "result"; status: "created" | "failed"; filename?: string; createdAt: string; error?: string }
 export interface RunRecord {
-  id: string; testId: string | null; testName: string; definition: Definition;
+  id: string; testId: string | null; testName: string; definition: Definition; browserMode: "headless" | "headed";
   status: "running" | "passed" | "failed" | "error"; startedAt: string; finishedAt: string | null;
   durationMs: number | null; steps: StepResult[]; incompleteSteps?: Array<{ stepId: string; action: string; index: number; startTime: string }>;
   artifacts: Artifact[]; error?: { name: string; message: string };
@@ -54,7 +54,7 @@ export const api = {
   getTest(id: string) { return request<TestRecord>(`/tests/${encodeURIComponent(id)}`); },
   updateTest(id: string, definition: Definition) { return request<TestRecord>(`/tests/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(definition) }); },
   deleteTest(id: string) { return request<void>(`/tests/${encodeURIComponent(id)}`, { method: "DELETE" }); },
-  runTest(id: string) { return request<RunRecord>(`/tests/${encodeURIComponent(id)}/runs`, { method: "POST", body: "{}" }); },
+  runTest(id: string, browserMode: "headless" | "headed" = "headless") { return request<RunRecord>(`/tests/${encodeURIComponent(id)}/runs`, { method: "POST", body: JSON.stringify({ browserMode }) }); },
   getRun(id: string) { return request<RunRecord>(`/runs/${encodeURIComponent(id)}`); },
   async getTestRuns(id: string) { return (await request<{ runs: RunRecord[] }>(`/tests/${encodeURIComponent(id)}/runs`)).runs; },
   async getActions() { return (await request<{ actions: ActionDescriptor[] }>("/actions")).actions; },

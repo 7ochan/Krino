@@ -4,6 +4,7 @@ import { chromium, type Browser, type BrowserContext, type Locator, type Page } 
 import { expect } from "playwright/test";
 import type { LocatorDescriptor, TargetDefinition } from "../definition.js";
 import type { BrowserPort, FailureArtifacts } from "./port.js";
+import { DEFAULT_BROWSER_MODE, type BrowserMode } from "./port.js";
 
 const DIAGNOSTIC_TIMEOUT_MS = 10_000;
 
@@ -111,8 +112,12 @@ class PlaywrightBrowserPort implements BrowserPort {
   }
 }
 
-export async function launchPlaywrightBrowser(target: TargetDefinition): Promise<BrowserPort> {
-  const browser = await chromium.launch({ headless: true, timeout: 30_000 });
+export function playwrightLaunchOptions(browserMode: BrowserMode = DEFAULT_BROWSER_MODE) {
+  return { headless: browserMode === "headless", timeout: 30_000 } as const;
+}
+
+export async function launchPlaywrightBrowser(target: TargetDefinition, browserMode: BrowserMode = DEFAULT_BROWSER_MODE): Promise<BrowserPort> {
+  const browser = await chromium.launch(playwrightLaunchOptions(browserMode));
   let context: BrowserContext | undefined;
   try {
     context = await browser.newContext();

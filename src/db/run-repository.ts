@@ -18,12 +18,13 @@ function isWithin(parent: string, candidate: string): boolean {
 export class SqliteRunRepository implements RunRepository {
   constructor(private readonly database: KrinoDatabase) {}
 
-  create(input: { id: string; testId: string; testName: string; definition: TestDefinition; startedAt: string }): void {
+  create(input: { id: string; testId: string; testName: string; definition: TestDefinition; browserMode: StoredRun["browserMode"]; startedAt: string }): void {
     this.database.orm.insert(runs).values({
       id: input.id,
       testId: input.testId,
       testName: input.testName,
       definitionSnapshot: JSON.stringify(input.definition),
+      browserMode: input.browserMode,
       status: "running",
       startedAt: input.startedAt,
       finishedAt: null,
@@ -141,6 +142,7 @@ export class SqliteRunRepository implements RunRepository {
       testId: row.testId,
       testName: row.testName,
       definition,
+      browserMode: row.browserMode,
       status: row.status,
       startedAt: row.startedAt,
       finishedAt: row.finishedAt,

@@ -4,6 +4,7 @@ import { constants } from "node:fs";
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import type { TestDefinition } from "./definition.js";
+import { DEFAULT_BROWSER_MODE, type BrowserMode } from "./browser/port.js";
 import type { IncompleteStep, RunResult, StepResult } from "./engine.js";
 import { PROTOCOL_VERSION, type WorkerMessage } from "./protocol.js";
 
@@ -17,6 +18,7 @@ export function workerWatchdogTimeoutMs(runTimeoutMs: number): number {
 export interface ChildRunOptions {
   runId?: string;
   definition: TestDefinition;
+  browserMode?: BrowserMode;
   artifactsDirectory: string;
   workerPath: string;
   onMessage?: (message: WorkerMessage) => void;
@@ -161,6 +163,7 @@ export function runInChild(options: ChildRunOptions): Promise<RunResult> {
       protocolVersion: PROTOCOL_VERSION,
       runId,
       definition: options.definition,
+      browserMode: options.browserMode ?? DEFAULT_BROWSER_MODE,
       artifactsDirectory: options.artifactsDirectory,
     })}\n`);
   });

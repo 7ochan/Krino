@@ -14,6 +14,7 @@ export const runs = sqliteTable("runs", {
   testId: text("test_id").references(() => tests.id, { onDelete: "set null" }),
   testName: text("test_name").notNull(),
   definitionSnapshot: text("definition_snapshot").notNull(),
+  browserMode: text("browser_mode", { enum: ["headless", "headed"] }).notNull().default("headless"),
   status: text("status", { enum: ["running", "passed", "failed", "error"] }).notNull(),
   startedAt: text("started_at").notNull(),
   finishedAt: text("finished_at"),

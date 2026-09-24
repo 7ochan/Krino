@@ -127,6 +127,31 @@ test('application execution persists passed, failed, and partial error runs with
   }
 });
 
+test('execution service passes browser mode to worker and persists it with each run', async () => {
+  const app = openApplication('browser-modes');
+  try {
+    const seenModes = [];
+    const service = new ExecutionService({
+      tests: new SqliteTestRepository(app.database),
+      runs: new SqliteRunRepository(app.database),
+      artifactsDirectory: app.database.artifactsDirectory,
+      executeWorker: async ({ runId, definition: testDefinition, browserMode }) => {
+        seenModes.push(browserMode);
+        const now = new Date().toISOString();
+        return { protocolVersion: 1, runId, testId: testDefinition.id, testName: testDefinition.name, status: 'passed', startTime: now, endTime: now, durationMs: 0, steps: [] };
+      },
+    });
+    const first = await service.runDefinition(definition('mode-test'));
+    const second = await service.runTest('mode-test', 'headless');
+    const third = await service.runTest('mode-test', 'headed');
+    assert.deepEqual(seenModes, ['headless', 'headless', 'headed']);
+    assert.deepEqual([first.run.browserMode, second.run.browserMode, third.run.browserMode], ['headless', 'headless', 'headed']);
+    assert.equal(app.runs.get(third.run.id).browserMode, 'headed');
+  } finally {
+    app.close();
+  }
+});
+
 test('local API CRUD and synchronous real-browser execution return persisted results without filesystem paths', async () => {
   const app = openApplication('api');
   const server = createApiServer(app);
@@ -154,6 +179,7 @@ test('local API CRUD and synchronous real-browser execution return persisted res
     assert.equal(runResponse.statusCode, 200, runResponse.body);
     const run = runResponse.json();
     assert.equal(run.status, 'passed');
+    assert.equal(run.browserMode, 'headless');
     assert.deepEqual(run.steps.map((step) => step.stepId), ['open', 'email', 'password', 'sign-in', 'dashboard']);
     assert.ok(run.finishedAt);
     assert.ok(run.durationMs >= 0);
@@ -167,6 +193,23 @@ test('local API CRUD and synchronous real-browser execution return persisted res
     assert.equal(persisted.json().steps.at(-1).stepId, 'dashboard');
     const history = await server.inject({ method: 'GET', url: '/tests/api-login/runs' });
     assert.equal(history.json().runs[0].id, run.id);
+
+    const originalRunTest = app.execution.runTest.bind(app.execution);
+    const requestedModes = [];
+    app.execution.runTest = async (testId, mode) => {
+      requestedModes.push(mode);
+      if (mode === 'headed') return { run: { ...app.runs.get(run.id), browserMode: mode }, result: {} };
+      return originalRunTest(testId, mode);
+    };
+    const headlessResponse = await server.inject({ method: 'POST', url: '/tests/api-login/runs', payload: { browserMode: 'headless' } });
+    assert.equal(headlessResponse.statusCode, 200, headlessResponse.body);
+    assert.equal(headlessResponse.json().browserMode, 'headless');
+    const headedResponse = await server.inject({ method: 'POST', url: '/tests/api-login/runs', payload: { browserMode: 'headed' } });
+    assert.equal(headedResponse.statusCode, 200, headedResponse.body);
+    assert.equal(headedResponse.json().browserMode, 'headed');
+    assert.deepEqual(requestedModes, ['headless', 'headed']);
+    const invalidModeResponse = await server.inject({ method: 'POST', url: '/tests/api-login/runs', payload: { browserMode: 'remote' } });
+    assert.equal(invalidModeResponse.statusCode, 400);
 
     await server.inject({ method: 'PUT', url: '/tests/api-login', payload: { ...updatedDefinition, name: 'Edited after run' } });
     assert.equal((await server.inject({ method: 'GET', url: `/runs/${run.id}` })).json().definition.name, 'API edited login test');
