@@ -134,6 +134,7 @@ test('local API CRUD and synchronous real-browser execution return persisted res
     const health = await server.inject({ method: 'GET', url: '/health' });
     assert.equal(health.statusCode, 200);
     assert.deepEqual(health.json(), { status: 'ok' });
+    assert.deepEqual((await server.inject({ method: 'GET', url: '/actions' })).json().actions.map((action) => action.id), ['navigate', 'fill', 'click', 'assertVisible', 'assertText']);
 
     const invalid = await server.inject({ method: 'POST', url: '/tests', payload: { ...definition(), target: { baseUrl: 'bad' } } });
     assert.equal(invalid.statusCode, 400);

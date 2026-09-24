@@ -87,6 +87,9 @@ const definitions = [
 
 export const actionRegistry = new Map(definitions.map((definition) => [definition.id, definition]));
 
+/** Small, stable discovery contract for clients that author versioned definitions. */
+export const actionCatalog = definitions.map(({ id, displayName }) => ({ id, displayName }));
+
 export async function executeAction(step: TestStep, context: ActionContext): Promise<void> {
   const definition = actionRegistry.get(step.action);
   if (!definition) throw new Error(`No handler registered for action "${step.action}"`);

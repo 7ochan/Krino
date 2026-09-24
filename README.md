@@ -1,6 +1,6 @@
 # Krino
 
-Krino is a private, local-first web test automation application. Milestone 1 provides a versioned JSON test definition, a TypeScript CLI, a child-process Playwright worker, and a tiny local fixture application. Milestone 2 adds a reusable application service, local SQLite run/test history, and a loopback-only Fastify API. Browser execution remains local; there is no UI, remote agent, or hosted service.
+Krino is a private, local-first web test automation application. The local React/TypeScript UI manages versioned definitions and run history through the loopback-only Fastify API. Browser execution remains local in the existing Playwright child process; there is no remote agent or hosted service.
 
 ## Prerequisites
 
@@ -41,11 +41,13 @@ pnpm krino run examples/login-failing.json
 
 The CLI uses the same application execution service as the API. It persists/updates the test definition by its test ID and records each run in SQLite while keeping the existing exit codes and artifact output.
 
-The test suite starts an ephemeral local fixture automatically:
+The test suite starts an ephemeral local fixture automatically. It also starts an isolated API and Vite server and drives a real headless Chromium session through the UI:
 
 ```sh
 pnpm test
 ```
+
+Run only the browser acceptance flow with `pnpm e2e`.
 
 Each CLI execution receives one run ID, shared by the worker, result, and its directory: `.krino/artifacts/<run-id>/` (or the directory passed with `--artifacts-dir`). `result.json` is written for every run; failed runs also attempt `screenshot.png` and `trace.zip`. The CLI prints the run ID and any available artifact paths. Artifact-capture errors are reported separately and do not replace the failed test result. Open a trace with `pnpm exec playwright show-trace <path-to-trace.zip>`.
 
@@ -55,7 +57,7 @@ The worker's browser accesses localhost and private-network targets directly fro
 
 ## Local API and persistence
 
-Start the API with:
+Start only the API with:
 
 ```sh
 pnpm api
@@ -63,10 +65,13 @@ pnpm api
 
 It binds only to `127.0.0.1` (port `4174` by default; override with `KRINO_PORT`). It does not fetch test target URLs itself: the child browser worker accesses localhost/private targets directly from this machine. The API is a local single-user interface, not an authenticated or network-exposed service.
 
+For the full development environment, run `pnpm dev`. The API stays bound to `127.0.0.1:4174`; Vite serves the UI at `http://127.0.0.1:5173` and proxies `/api` requests to the API. To run only the UI, use `pnpm --dir ui dev` while the API is running. `VITE_API_BASE_URL` can override the request base path, for example when a local deployment provides its own same-origin proxy.
+
 Available endpoints:
 
 ```text
 GET    /health
+GET    /actions
 GET    /tests
 POST   /tests
 GET    /tests/:id
@@ -92,6 +97,8 @@ curl -sS http://127.0.0.1:4174/runs/<run-id>
 
 Artifact responses expose metadata/filenames, not arbitrary filesystem paths. There is no generic file-serving endpoint. The on-disk run directory and `result.json` behavior are unchanged.
 
+The UI is available at `http://127.0.0.1:5173` while `pnpm dev` is running. It supports test list/create/edit/delete, the current registered actions and locators, synchronous runs, history, and run reports. `pnpm test` covers backend, frontend, and local Chromium UI E2E tests; `pnpm typecheck` and `pnpm build` cover backend and frontend. UI-only commands are also available as `pnpm ui:test`, `pnpm ui:typecheck`, and `pnpm ui:build`.
+
 ## Current limits
 
-This milestone supports only `navigate`, `fill`, `click`, `assertVisible`, and `assertText`; one Chromium run at a time; and JSON-authored tests. Milestone 2 adds local persistence and a synchronous API but not a management UI, background queue, remote agent, CI integration, custom addons, AI, or locator healing.
+This milestone supports only the registered actions (`navigate`, `fill`, `click`, `assertVisible`, and `assertText`); one Chromium run at a time; and versioned JSON definitions authored through a small form. There is no background queue, remote agent, CI integration, custom addons, AI, or locator healing.

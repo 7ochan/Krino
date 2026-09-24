@@ -11,15 +11,21 @@
     "krino": "dist/cli.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm build && node --test tests/*.test.mjs",
+    "build": "pnpm build:backend && pnpm ui:build",
+    "build:backend": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm ui:typecheck",
+    "test": "pnpm build:backend && node --test tests/*.test.mjs tests/ui.e2e.mjs && pnpm ui:test",
     "krino": "node dist/cli.js",
-    "api": "pnpm build && node dist/server/main.js",
+    "api": "pnpm build:backend && node dist/server/main.js",
+    "dev": "concurrently -k -n api,ui -c blue,green \"pnpm api\" \"pnpm --dir ui dev\"",
+    "ui:test": "pnpm --dir ui test",
+    "e2e": "pnpm build:backend && node --test tests/ui.e2e.mjs",
+    "ui:typecheck": "pnpm --dir ui typecheck",
+    "ui:build": "pnpm --dir ui build",
     "db:generate": "drizzle-kit generate",
-    "fixture": "pnpm build && node dist/fixture/server.js",
-    "run:success": "pnpm build && node dist/cli.js run examples/login.json",
-    "run:failure": "pnpm build && node dist/cli.js run examples/login-failing.json"
+    "fixture": "pnpm build:backend && node dist/fixture/server.js",
+    "run:success": "pnpm build:backend && node dist/cli.js run examples/login.json",
+    "run:failure": "pnpm build:backend && node dist/cli.js run examples/login-failing.json"
   },
   "dependencies": {
     "better-sqlite3": "^12.11.1",
@@ -31,6 +37,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.18.6",
+    "concurrently": "^9.2.1",
     "drizzle-kit": "^0.31.11",
     "typescript": "^5.9.2"
   }

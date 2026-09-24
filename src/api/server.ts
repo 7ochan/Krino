@@ -4,6 +4,7 @@ import { DefinitionValidationError } from "../definition.js";
 import type { createApplication } from "../application/create-application.js";
 import { ConflictError, NotFoundError } from "../application/errors.js";
 import { toRunResponse, toTestResponse } from "./contracts.js";
+import { actionCatalog } from "../actions.js";
 
 const idParamsSchema = z.object({ id: z.string().trim().min(1).max(120) }).strict();
 type Application = ReturnType<typeof createApplication>;
@@ -27,6 +28,7 @@ export function createApiServer(application: Application): FastifyInstance {
   });
 
   server.get("/health", async () => ({ status: "ok" as const }));
+  server.get("/actions", async () => ({ actions: actionCatalog }));
 
   server.get("/tests", async () => ({ tests: application.tests.list() }));
   server.post<{ Body: unknown }>("/tests", async (request, reply) => {
