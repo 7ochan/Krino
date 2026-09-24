@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "login-smoke",
+  "name": "User can sign in",
+  "target": {
+    "baseUrl": "http://127.0.0.1:4173",
+    "timeoutMs": 8000
+  },
+  "steps": [
+    {
+      "id": "navigate-login",
+      "action": "navigate",
+      "url": "/login"
+    },
+    {
+      "id": "fill-email",
+      "action": "fill",
+      "target": {
+        "strategy": "label",
+        "value": "Email"
+      },
+      "value": {
+        "kind": "literal",
+        "value": "qa@example.test"
+      }
+    },
+    {
+      "id": "fill-password",
+      "action": "fill",
+      "target": {
+        "strategy": "label",
+        "value": "Password"
+      },
+      "value": {
+        "kind": "literal",
+        "value": "correct-horse"
+      }
+    },
+    {
+      "id": "click-login",
+      "action": "click",
+      "target": {
+        "strategy": "role",
+        "role": "button",
+        "name": "Sign in"
+      }
+    },
+    {
+      "id": "assert-dashboard",
+      "action": "assertVisible",
+      "target": {
+        "strategy": "role",
+        "role": "heading",
+        "name": "Dashboard"
+      }
+    },
+    {
+      "id": "assert-welcome-text",
+      "action": "assertText",
+      "target": {
+        "strategy": "role",
+        "role": "heading",
+        "name": "Dashboard"
+      },
+      "text": "Dashboard"
+    }
+  ]
+}

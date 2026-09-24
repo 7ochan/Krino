@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "login-diagnostic-smoke",
+  "name": "Intentional failure captures diagnostics",
+  "target": {
+    "baseUrl": "http://127.0.0.1:4173",
+    "timeoutMs": 5000
+  },
+  "steps": [
+    {
+      "id": "navigate-login",
+      "action": "navigate",
+      "url": "/login"
+    },
+    {
+      "id": "fill-email",
+      "action": "fill",
+      "target": {
+        "strategy": "label",
+        "value": "Email"
+      },
+      "value": {
+        "kind": "literal",
+        "value": "qa@example.test"
+      }
+    },
+    {
+      "id": "fill-password",
+      "action": "fill",
+      "target": {
+        "strategy": "label",
+        "value": "Password"
+      },
+      "value": {
+        "kind": "literal",
+        "value": "correct-horse"
+      }
+    },
+    {
+      "id": "click-login",
+      "action": "click",
+      "target": {
+        "strategy": "role",
+        "role": "button",
+        "name": "Sign in"
+      }
+    },
+    {
+      "id": "assert-missing-heading-text",
+      "action": "assertText",
+      "target": {
+        "strategy": "role",
+        "role": "heading",
+        "name": "Dashboard"
+      },
+      "text": "This content is intentionally absent"
+    },
+    {
+      "id": "must-be-skipped",
+      "action": "assertVisible",
+      "target": {
+        "strategy": "role",
+        "role": "heading",
+        "name": "Dashboard"
+      }
+    }
+  ]
+}

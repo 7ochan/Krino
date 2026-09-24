@@ -1,0 +1,30 @@
+{
+  "name": "krino",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@11.13.1",
+  "bin": {
+    "krino": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm build && node --test tests/*.test.mjs",
+    "krino": "node dist/cli.js",
+    "fixture": "pnpm build && node dist/fixture/server.js",
+    "run:success": "pnpm build && node dist/cli.js run examples/login.json",
+    "run:failure": "pnpm build && node dist/cli.js run examples/login-failing.json"
+  },
+  "dependencies": {
+    "playwright": "^1.55.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.6",
+    "typescript": "^5.9.2"
+  }
+}
