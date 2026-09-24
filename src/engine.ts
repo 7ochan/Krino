@@ -17,6 +17,13 @@ export interface StepResult {
   error?: { name: string; message: string };
 }
 
+export interface IncompleteStep {
+  stepId: string;
+  action: TestStep["action"];
+  index: number;
+  startTime: string;
+}
+
 export interface RunResult {
   protocolVersion: 1;
   runId: string;
@@ -27,12 +34,13 @@ export interface RunResult {
   endTime: string;
   durationMs: number;
   steps: StepResult[];
+  incompleteSteps?: IncompleteStep[];
   artifacts?: FailureArtifacts;
   error?: { name: string; message: string };
 }
 
 export type ExecutionEvent =
-  | { type: "STEP_STARTED"; stepId: string; action: TestStep["action"]; index: number; total: number }
+  | { type: "STEP_STARTED"; stepId: string; action: TestStep["action"]; startTime: string; index: number; total: number }
   | { type: "STEP_FINISHED"; result: StepResult; index: number; total: number };
 
 export interface ExecuteOptions {
@@ -65,23 +73,41 @@ export async function executeDefinition(options: ExecuteOptions): Promise<RunRes
   const startedAt = performance.now();
   const steps: StepResult[] = [];
   let failed = false;
+  let runTimedOut = false;
   let failureArtifacts: FailureArtifacts | undefined;
   let failure: { name: string; message: string } | undefined;
 
   for (const [index, step] of definition.steps.entries()) {
-    if (failed) {
+    if (failed || runTimedOut) {
       const result = skippedResult(step);
       steps.push(result);
       onEvent?.({ type: "STEP_FINISHED", result, index, total: definition.steps.length });
       continue;
     }
 
+    const remainingRunMs = definition.target.runTimeoutMs - (performance.now() - startedAt);
+    if (remainingRunMs <= 0) {
+      runTimedOut = true;
+      failure = {
+        name: "RunTimeoutError",
+        message: `Run exceeded its ${definition.target.runTimeoutMs}ms whole-run timeout before step "${step.id}" started`,
+      };
+      for (const [skippedIndex, skippedStep] of definition.steps.entries()) {
+        if (skippedIndex < index) continue;
+        const skipped = skippedResult(skippedStep);
+        steps.push(skipped);
+        onEvent?.({ type: "STEP_FINISHED", result: skipped, index: skippedIndex, total: definition.steps.length });
+      }
+      break;
+    }
+
     const stepStartedAt = performance.now();
     const stepStartTime = new Date().toISOString();
-    onEvent?.({ type: "STEP_STARTED", stepId: step.id, action: step.action, index, total: definition.steps.length });
+    const actionTimeoutMs = Math.max(1, Math.min(definition.target.stepTimeoutMs, Math.ceil(remainingRunMs)));
+    onEvent?.({ type: "STEP_STARTED", stepId: step.id, action: step.action, startTime: stepStartTime, index, total: definition.steps.length });
     let result: StepResult;
     try {
-      await executeAction(step, { browser, target: definition.target });
+      await executeAction(step, { browser, target: definition.target, timeoutMs: actionTimeoutMs });
       const endTime = new Date().toISOString();
       result = {
         stepId: step.id,
@@ -93,7 +119,7 @@ export async function executeDefinition(options: ExecuteOptions): Promise<RunRes
       };
     } catch (error) {
       failed = true;
-      failure = errorDetails(error);
+      const actionError = errorDetails(error);
       const endTime = new Date().toISOString();
       result = {
         stepId: step.id,
@@ -102,13 +128,35 @@ export async function executeDefinition(options: ExecuteOptions): Promise<RunRes
         startTime: stepStartTime,
         endTime,
         durationMs: Math.max(0, Math.round(performance.now() - stepStartedAt)),
-        error: failure,
+        error: actionError,
       };
-      await mkdir(artifactsDirectory, { recursive: true });
-      failureArtifacts = await browser.captureFailureArtifacts(artifactsDirectory);
+      failure = actionError;
+      const stepDurationMs = Math.max(0, Math.round(performance.now() - stepStartedAt));
+      const timeoutWasRunLimited = actionTimeoutMs < definition.target.stepTimeoutMs;
+      const likelyReachedRunDeadline = stepDurationMs >= Math.max(actionTimeoutMs * 0.8, actionTimeoutMs - 50);
+      if (timeoutWasRunLimited && likelyReachedRunDeadline) {
+        runTimedOut = true;
+        failure = {
+          name: "RunTimeoutError",
+          message: `Run exceeded its ${definition.target.runTimeoutMs}ms whole-run timeout while executing step "${step.id}"`,
+        };
+      }
     }
     steps.push(result);
     onEvent?.({ type: "STEP_FINISHED", result, index, total: definition.steps.length });
+
+    if (result.status === "failed") {
+      // Preserve the observed test failure before performing best-effort diagnostics.
+      // Artifact IO must never replace the actual failed step with a generic run error.
+      try {
+        await mkdir(artifactsDirectory, { recursive: true });
+        failureArtifacts = await browser.captureFailureArtifacts(artifactsDirectory);
+      } catch (error) {
+        failureArtifacts = {
+          errors: [`Failure artifact capture failed: ${error instanceof Error ? error.message : String(error)}`],
+        };
+      }
+    }
   }
 
   const endTime = new Date().toISOString();
@@ -117,7 +165,7 @@ export async function executeDefinition(options: ExecuteOptions): Promise<RunRes
     runId,
     testId: definition.id,
     testName: definition.name,
-    status: failed ? "failed" : "passed",
+    status: runTimedOut ? "error" : failed ? "failed" : "passed",
     startTime,
     endTime,
     durationMs: Math.max(0, Math.round(performance.now() - startedAt)),

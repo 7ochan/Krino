@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { createInterface } from "node:readline";
 import { launchPlaywrightBrowser } from "./browser/playwright-adapter.js";
 import { executeDefinition } from "./engine.js";
@@ -14,40 +13,49 @@ let acceptedRequest = false;
 
 input.on("line", async (line) => {
   if (acceptedRequest) {
-    send({ type: "RUN_ERROR", protocolVersion: PROTOCOL_VERSION, requestId: null, message: "Worker accepts exactly one request" });
+    send({ type: "RUN_ERROR", protocolVersion: PROTOCOL_VERSION, runId: null, message: "Worker accepts exactly one request" });
     return;
   }
   acceptedRequest = true;
-  let requestId: string | null = null;
+  let runId: string | null = null;
   let browser: Awaited<ReturnType<typeof launchPlaywrightBrowser>> | undefined;
   try {
     const raw: unknown = JSON.parse(line);
-    if (typeof raw === "object" && raw !== null && "requestId" in raw && typeof raw.requestId === "string") requestId = raw.requestId;
+    if (typeof raw === "object" && raw !== null && "runId" in raw && typeof raw.runId === "string") runId = raw.runId;
     const request = runRequestSchema.parse(raw);
     const definition = parseTestDefinition(request.definition);
-    const runId = randomUUID();
-    send({ type: "RUN_STARTED", protocolVersion: PROTOCOL_VERSION, requestId: request.requestId, runId, testName: definition.name });
+    const activeRunId = request.runId;
+    runId = activeRunId;
+    send({ type: "RUN_STARTED", protocolVersion: PROTOCOL_VERSION, runId: activeRunId, testName: definition.name });
     browser = await launchPlaywrightBrowser(definition.target);
-    const result = await executeDefinition({
-      runId,
+    let result = await executeDefinition({
+      runId: activeRunId,
       definition,
       browser,
       artifactsDirectory: request.artifactsDirectory,
       onEvent(event) {
         if (event.type === "STEP_STARTED") {
-          send({ ...event, protocolVersion: PROTOCOL_VERSION, requestId: request.requestId });
+          send({ ...event, protocolVersion: PROTOCOL_VERSION, runId: activeRunId });
         } else {
-          send({ ...event, protocolVersion: PROTOCOL_VERSION, requestId: request.requestId });
+          send({ ...event, protocolVersion: PROTOCOL_VERSION, runId: activeRunId });
         }
       },
     });
-    await browser.close();
+    try {
+      await browser.close();
+    } catch (error) {
+      result = {
+        ...result,
+        status: "error",
+        error: { name: "BrowserCleanupError", message: error instanceof Error ? error.message : String(error) },
+      };
+    }
     browser = undefined;
-    send({ type: "RUN_FINISHED", protocolVersion: PROTOCOL_VERSION, requestId: request.requestId, result });
+    send({ type: "RUN_FINISHED", protocolVersion: PROTOCOL_VERSION, runId: activeRunId, result });
   } catch (error) {
     if (browser) await browser.close().catch(() => undefined);
     const message = error instanceof Error ? error.message : String(error);
-    send({ type: "RUN_ERROR", protocolVersion: PROTOCOL_VERSION, requestId, message });
+    send({ type: "RUN_ERROR", protocolVersion: PROTOCOL_VERSION, runId, message });
   } finally {
     input.close();
   }

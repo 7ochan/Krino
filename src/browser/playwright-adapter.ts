@@ -5,6 +5,8 @@ import { expect } from "playwright/test";
 import type { LocatorDescriptor, TargetDefinition } from "../definition.js";
 import type { BrowserPort, FailureArtifacts } from "./port.js";
 
+const DIAGNOSTIC_TIMEOUT_MS = 10_000;
+
 function toLocator(page: Page, descriptor: LocatorDescriptor): Locator {
   switch (descriptor.strategy) {
     case "role":
@@ -31,27 +33,26 @@ class PlaywrightBrowserPort implements BrowserPort {
     private readonly browser: Browser,
     private readonly context: BrowserContext,
     private readonly page: Page,
-    private readonly target: TargetDefinition,
   ) {}
 
-  async navigate(url: string): Promise<void> {
-    await this.page.goto(url, { waitUntil: "domcontentloaded", timeout: this.target.timeoutMs });
+  async navigate(url: string, timeoutMs: number): Promise<void> {
+    await this.page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
   }
 
-  async fill(target: LocatorDescriptor, value: string): Promise<void> {
-    await toLocator(this.page, target).fill(value, { timeout: this.target.timeoutMs });
+  async fill(target: LocatorDescriptor, value: string, timeoutMs: number): Promise<void> {
+    await toLocator(this.page, target).fill(value, { timeout: timeoutMs });
   }
 
-  async click(target: LocatorDescriptor): Promise<void> {
-    await toLocator(this.page, target).click({ timeout: this.target.timeoutMs });
+  async click(target: LocatorDescriptor, timeoutMs: number): Promise<void> {
+    await toLocator(this.page, target).click({ timeout: timeoutMs });
   }
 
-  async assertVisible(target: LocatorDescriptor): Promise<void> {
-    await expect(toLocator(this.page, target)).toBeVisible({ timeout: this.target.timeoutMs });
+  async assertVisible(target: LocatorDescriptor, timeoutMs: number): Promise<void> {
+    await expect(toLocator(this.page, target)).toBeVisible({ timeout: timeoutMs });
   }
 
-  async assertText(target: LocatorDescriptor, text: string): Promise<void> {
-    await expect(toLocator(this.page, target)).toContainText(text, { timeout: this.target.timeoutMs });
+  async assertText(target: LocatorDescriptor, text: string, timeoutMs: number): Promise<void> {
+    await expect(toLocator(this.page, target)).toContainText(text, { timeout: timeoutMs });
   }
 
   async captureFailureArtifacts(directory: string): Promise<FailureArtifacts> {
@@ -61,7 +62,7 @@ class PlaywrightBrowserPort implements BrowserPort {
     await mkdir(directory, { recursive: true });
 
     try {
-      await this.page.screenshot({ path: screenshotPath, fullPage: true, timeout: this.target.timeoutMs });
+      await this.page.screenshot({ path: screenshotPath, fullPage: true, timeout: DIAGNOSTIC_TIMEOUT_MS });
     } catch (error) {
       errors.push(`Screenshot capture failed: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -69,9 +70,12 @@ class PlaywrightBrowserPort implements BrowserPort {
     if (this.traceActive) {
       try {
         await this.context.tracing.stop({ path: tracePath });
-        this.traceActive = false;
       } catch (error) {
         errors.push(`Trace capture failed: ${error instanceof Error ? error.message : String(error)}`);
+      } finally {
+        // Do not retry a failed trace finalization in close(); that can turn a
+        // captured test failure into a browser-cleanup error and mask its result.
+        this.traceActive = false;
       }
     }
 
@@ -108,7 +112,7 @@ class PlaywrightBrowserPort implements BrowserPort {
 }
 
 export async function launchPlaywrightBrowser(target: TargetDefinition): Promise<BrowserPort> {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, timeout: 30_000 });
   let context: BrowserContext | undefined;
   try {
     context = await browser.newContext();
@@ -123,7 +127,7 @@ export async function launchPlaywrightBrowser(target: TargetDefinition): Promise
     });
     await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
     const page = await context.newPage();
-    return new PlaywrightBrowserPort(browser, context, page, target);
+    return new PlaywrightBrowserPort(browser, context, page);
   } catch (error) {
     if (context) await context.close().catch(() => undefined);
     await browser.close().catch(() => undefined);

@@ -4,7 +4,8 @@
   "name": "User can sign in",
   "target": {
     "baseUrl": "http://127.0.0.1:4173",
-    "timeoutMs": 8000
+    "stepTimeoutMs": 8000,
+    "runTimeoutMs": 300000
   },
   "steps": [
     {

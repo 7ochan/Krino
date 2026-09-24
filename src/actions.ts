@@ -13,6 +13,7 @@ import {
 export interface ActionContext {
   browser: BrowserPort;
   target: TargetDefinition;
+  timeoutMs: number;
 }
 
 interface ActionDefinition<K extends TestStep["action"]> {
@@ -46,7 +47,7 @@ const definitions = [
     id: "navigate",
     displayName: "Navigate to URL",
     inputSchema: navigateStepSchema,
-    async execute(step, { browser, target }) {
+    async execute(step, { browser, target, timeoutMs }) {
       const resolved = new URL(step.url, target.baseUrl);
       if (!["http:", "https:"].includes(resolved.protocol)) {
         throw new Error("Navigation URL must use http or https");
@@ -55,32 +56,32 @@ const definitions = [
       if (!allowed.has(resolved.origin)) {
         throw new Error(`Navigation origin ${resolved.origin} is not in the target's allowedOrigins`);
       }
-      await browser.navigate(resolved.toString());
+      await browser.navigate(resolved.toString(), timeoutMs);
     },
   }),
   defineAction({
     id: "fill",
     displayName: "Fill field",
     inputSchema: fillStepSchema,
-    execute: (step, { browser }) => browser.fill(step.target, step.value.value),
+    execute: (step, { browser, timeoutMs }) => browser.fill(step.target, step.value.value, timeoutMs),
   }),
   defineAction({
     id: "click",
     displayName: "Click element",
     inputSchema: clickStepSchema,
-    execute: (step, { browser }) => browser.click(step.target),
+    execute: (step, { browser, timeoutMs }) => browser.click(step.target, timeoutMs),
   }),
   defineAction({
     id: "assertVisible",
     displayName: "Assert visible",
     inputSchema: assertVisibleStepSchema,
-    execute: (step, { browser }) => browser.assertVisible(step.target),
+    execute: (step, { browser, timeoutMs }) => browser.assertVisible(step.target, timeoutMs),
   }),
   defineAction({
     id: "assertText",
     displayName: "Assert text",
     inputSchema: assertTextStepSchema,
-    execute: (step, { browser }) => browser.assertText(step.target, step.text),
+    execute: (step, { browser, timeoutMs }) => browser.assertText(step.target, step.text, timeoutMs),
   }),
 ] as const;
 

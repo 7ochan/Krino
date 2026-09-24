@@ -40,16 +40,30 @@ export const locatorSchema = z.discriminatedUnion("strategy", [
   cssLocator,
 ]);
 
-const targetUrl = z.string().url().refine(
-  (value) => ["http:", "https:"].includes(new URL(value).protocol),
-  "Target baseUrl must use http or https",
-);
+const targetUrl = z.string().url().refine((value) => {
+  // z.string().url() reports malformed input. Keep this refinement safe because
+  // URL() throws for some strings that Zod rejects, and refinements must not leak it.
+  try {
+    return ["http:", "https:"].includes(new URL(value).protocol);
+  } catch {
+    return true;
+  }
+}, "Target URL must use http or https");
 
 export const targetSchema = z.object({
   baseUrl: targetUrl,
   allowedOrigins: z.array(targetUrl).optional(),
-  timeoutMs: z.number().int().min(100).max(120_000).default(10_000),
-}).strict();
+  stepTimeoutMs: z.number().int().min(100).max(120_000).default(10_000),
+  runTimeoutMs: z.number().int().min(1_000).max(600_000).default(300_000),
+}).strict().superRefine((target, context) => {
+  if (target.runTimeoutMs < target.stepTimeoutMs) {
+    context.addIssue({
+      code: "custom",
+      path: ["runTimeoutMs"],
+      message: "runTimeoutMs must be at least stepTimeoutMs",
+    });
+  }
+});
 
 const stepId = nonEmpty.max(120);
 

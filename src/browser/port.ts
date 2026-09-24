@@ -7,11 +7,11 @@ export interface FailureArtifacts {
 }
 
 export interface BrowserPort {
-  navigate(url: string): Promise<void>;
-  fill(target: LocatorDescriptor, value: string): Promise<void>;
-  click(target: LocatorDescriptor): Promise<void>;
-  assertVisible(target: LocatorDescriptor): Promise<void>;
-  assertText(target: LocatorDescriptor, text: string): Promise<void>;
+  navigate(url: string, timeoutMs: number): Promise<void>;
+  fill(target: LocatorDescriptor, value: string, timeoutMs: number): Promise<void>;
+  click(target: LocatorDescriptor, timeoutMs: number): Promise<void>;
+  assertVisible(target: LocatorDescriptor, timeoutMs: number): Promise<void>;
+  assertText(target: LocatorDescriptor, text: string, timeoutMs: number): Promise<void>;
   captureFailureArtifacts(directory: string): Promise<FailureArtifacts>;
   close(): Promise<void>;
 }

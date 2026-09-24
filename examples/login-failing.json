@@ -4,7 +4,8 @@
   "name": "Intentional failure captures diagnostics",
   "target": {
     "baseUrl": "http://127.0.0.1:4173",
-    "timeoutMs": 5000
+    "stepTimeoutMs": 5000,
+    "runTimeoutMs": 300000
   },
   "steps": [
     {
