@@ -6,6 +6,7 @@ export default defineConfig({
   server: {
     host: "127.0.0.1",
     port: 5173,
+    strictPort: true,
     proxy: { "/api": { target: `http://127.0.0.1:${process.env.KRINO_PORT ?? "4174"}`, rewrite: (path) => path.replace(/^\/api/, "") } },
   },
   test: { environment: "jsdom", setupFiles: "./src/test-setup.ts" },

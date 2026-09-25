@@ -100,7 +100,7 @@ curl -sS http://127.0.0.1:4174/runs/<run-id>
 
 Artifact responses expose metadata/filenames, not arbitrary filesystem paths. There is no generic file-serving endpoint. The on-disk run directory and `result.json` behavior are unchanged.
 
-The UI is available at `http://127.0.0.1:5173` while `pnpm dev` is running. It supports test list/create/edit/delete, the current registered actions and locators, synchronous runs, history, and run reports. `pnpm test` covers backend, frontend, and local Chromium UI E2E tests; `pnpm typecheck` and `pnpm build` cover backend and frontend. UI-only commands are also available as `pnpm ui:test`, `pnpm ui:typecheck`, and `pnpm ui:build`.
+The UI is available at `http://127.0.0.1:5173` while `pnpm dev` is running. It supports test list/create/edit/delete, the current registered actions and locators, synchronous runs, history, and run reports. The dev command builds the backend first, then watches TypeScript output and restarts the API when backend files change. Vite uses a strict port so a second dev process cannot quietly serve the UI on a different port while the existing API remains active. If either port is already in use, stop the existing Krino dev process in its terminal with Ctrl-C before starting `pnpm dev` again. The UI proxy and API must come from the same dev instance. `pnpm test` covers backend, frontend, and local Chromium UI E2E tests; `pnpm typecheck` and `pnpm build` cover backend and frontend. UI-only commands are also available as `pnpm ui:test`, `pnpm ui:typecheck`, and `pnpm ui:build`.
 
 ## Browser execution modes
 

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { createServer as createNetServer } from 'node:net';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { join, resolve } from 'node:path';
 import { after, before, test } from 'node:test';
@@ -24,6 +24,8 @@ let browser;
 let page;
 let frontendUrl;
 let viteOutput = '';
+let workerStartMessages = [];
+let desktopCapturePromise = Promise.resolve();
 
 async function availablePort() {
   const server = createNetServer();
@@ -49,7 +51,18 @@ async function waitForFrontend(url) {
 before(async () => {
   dataDirectory = await mkdtemp(join(tmpdir(), 'krino-ui-e2e-'));
   fixture = await startFixtureServer();
-  application = createApplication({ dataDirectory });
+  application = createApplication({ dataDirectory, onWorkerMessage: (message) => {
+    if (message.type === 'RUN_STARTED') workerStartMessages.push(message);
+    if (process.platform === 'darwin' && message.type === 'STEP_STARTED' && workerStartMessages.some((started) => started.runId === message.runId && started.browserMode === 'headed')) {
+      if (process.env.KRINO_CAPTURE_DESKTOP && !process.env.KRINO_DESKTOP_CAPTURED) {
+        desktopCapturePromise = new Promise((resolveCapture, rejectCapture) => setTimeout(() => {
+          try { execFileSync('/usr/sbin/screencapture', ['-x', process.env.KRINO_CAPTURE_DESKTOP]); resolveCapture(); }
+          catch (error) { rejectCapture(error); }
+        }, 600));
+        process.env.KRINO_DESKTOP_CAPTURED = '1';
+      }
+    }
+  } });
   const apiPort = await availablePort();
   apiServer = await startApiServer(application, apiPort);
   const vitePort = await availablePort();
@@ -64,7 +77,7 @@ before(async () => {
   viteProcess.stderr.on('data', (chunk) => { viteOutput += chunk; });
   frontendUrl = `http://127.0.0.1:${vitePort}`;
   await waitForFrontend(frontendUrl);
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({ headless: process.env.KRINO_VISIBLE_UI_E2E !== '1' });
   page = await browser.newPage();
   page.setDefaultTimeout(8_000);
 }, { timeout: 45_000 });
@@ -211,15 +224,35 @@ test('UI can launch a visible Chromium run and report its browser mode', { skip:
     id: 'headed-ui-e2e',
     name: 'Visible browser fixture run',
     target: { baseUrl: fixture.url, stepTimeoutMs: 4_000, runTimeoutMs: 30_000 },
-    steps: [{ id: 'open-login', action: 'navigate', url: '/login' }],
+    steps: [
+      { id: 'open-login', action: 'navigate', url: '/login' },
+      { id: 'email', action: 'fill', target: { strategy: 'label', value: 'Email' }, value: { kind: 'literal', value: 'qa@example.test' } },
+      { id: 'password', action: 'fill', target: { strategy: 'label', value: 'Password' }, value: { kind: 'literal', value: 'correct-horse' } },
+      { id: 'sign-in', action: 'click', target: { strategy: 'role', role: 'button', name: 'Sign in' } },
+      { id: 'dashboard', action: 'assertVisible', target: { strategy: 'role', role: 'heading', name: 'Dashboard' } },
+      { id: 'welcome', action: 'assertText', target: { strategy: 'text', value: 'Welcome, qa@example.test', exact: true }, text: 'Welcome, qa@example.test' },
+    ],
   });
   await page.goto(`${frontendUrl}/tests/headed-ui-e2e/edit`);
   await page.getByLabel('Browser mode').selectOption('headed');
   await page.getByText('A Chromium window will open on this desktop.').waitFor();
+  let sentRunMode;
+  page.on('request', (request) => {
+    if (request.url().includes('/api/tests/headed-ui-e2e/runs') && request.method() === 'POST') {
+      sentRunMode = request.postDataJSON()?.browserMode;
+    }
+  });
   await page.getByRole('button', { name: '▶ Save & run' }).click();
   await page.getByRole('heading', { name: 'Visible browser fixture run' }).waitFor();
   await page.locator('.run-status-block').getByText('PASSED').waitFor();
   await page.locator('.run-summary').getByText('Visible').waitFor();
+  assert.equal(sentRunMode, 'headed', 'Save & run must POST browserMode=headed');
+  assert.ok(workerStartMessages.some((message) => message.browserMode === 'headed'), 'Fastify must pass headed mode through the child request and worker protocol');
+  assert.equal(await page.locator('.result-main code').count(), 6, 'the visible child browser must complete the fixture actions');
+  await desktopCapturePromise;
+  if (process.env.KRINO_CAPTURE_UI_DESKTOP) {
+    execFileSync('/usr/sbin/screencapture', ['-x', process.env.KRINO_CAPTURE_UI_DESKTOP]);
+  }
 });
 
 test('Element Inspector starts a visible fixture session, returns element data to UI, and stops cleanly', { skip: headedDisplayAvailable ? false : 'No desktop display is available for headed Chromium', timeout: 45_000 }, async () => {

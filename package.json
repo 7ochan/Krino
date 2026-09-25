@@ -17,7 +17,7 @@
     "test": "pnpm build:backend && node --test tests/*.test.mjs tests/ui.e2e.mjs && pnpm ui:test",
     "krino": "node dist/cli.js",
     "api": "pnpm build:backend && node dist/server/main.js",
-    "dev": "concurrently -k -n api,ui -c blue,green \"pnpm api\" \"pnpm --dir ui dev\"",
+    "dev": "pnpm build:backend && concurrently -k -n api,build,ui -c blue,cyan,green \"node --watch dist/server/main.js\" \"pnpm exec tsc -p tsconfig.json --watch --preserveWatchOutput\" \"pnpm --dir ui dev\"",
     "ui:test": "pnpm --dir ui test",
     "e2e": "pnpm build:backend && node --test tests/ui.e2e.mjs",
     "ui:typecheck": "pnpm --dir ui typecheck",

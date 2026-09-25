@@ -19,7 +19,7 @@ export type RunRequest = z.infer<typeof runRequestSchema>;
 export type { BrowserMode };
 
 export type WorkerMessage =
-  | { type: "RUN_STARTED"; protocolVersion: 1; runId: string; testName: string }
+  | { type: "RUN_STARTED"; protocolVersion: 1; runId: string; testName: string; browserMode: BrowserMode }
   | { type: "STEP_STARTED"; protocolVersion: 1; runId: string; stepId: string; action: TestStep["action"]; startTime: string; index: number; total: number }
   | { type: "STEP_FINISHED"; protocolVersion: 1; runId: string; result: StepResult; index: number; total: number }
   | { type: "RUN_FINISHED"; protocolVersion: 1; runId: string; result: RunResult }

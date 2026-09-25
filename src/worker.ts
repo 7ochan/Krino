@@ -26,7 +26,7 @@ input.on("line", async (line) => {
     const definition = parseTestDefinition(request.definition);
     const activeRunId = request.runId;
     runId = activeRunId;
-    send({ type: "RUN_STARTED", protocolVersion: PROTOCOL_VERSION, runId: activeRunId, testName: definition.name });
+    send({ type: "RUN_STARTED", protocolVersion: PROTOCOL_VERSION, runId: activeRunId, testName: definition.name, browserMode: request.browserMode });
     browser = await launchPlaywrightBrowser(definition.target, request.browserMode);
     let result = await executeDefinition({
       runId: activeRunId,
