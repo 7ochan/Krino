@@ -8,6 +8,7 @@ import { actionCatalog } from "../actions.js";
 import { browserModeSchema } from "../protocol.js";
 
 const idParamsSchema = z.object({ id: z.string().trim().min(1).max(120) }).strict();
+const inspectionRequestSchema = z.object({ targetUrl: z.string().url(), browserMode: z.enum(["headless", "headed"]) }).strict();
 type Application = ReturnType<typeof createApplication>;
 
 export function createApiServer(application: Application): FastifyInstance {
@@ -30,6 +31,20 @@ export function createApiServer(application: Application): FastifyInstance {
 
   server.get("/health", async () => ({ status: "ok" as const }));
   server.get("/actions", async () => ({ actions: actionCatalog }));
+
+  server.post<{ Body: unknown }>("/inspections", async (request, reply) => {
+    const body = inspectionRequestSchema.parse(request.body);
+    const session = await application.inspections.start(body);
+    return reply.code(201).send(session);
+  });
+  server.get<{ Params: { id: string } }>("/inspections/:id", async (request) => {
+    const { id } = idParamsSchema.parse(request.params);
+    return application.inspections.get(id);
+  });
+  server.post<{ Params: { id: string } }>("/inspections/:id/stop", async (request) => {
+    const { id } = idParamsSchema.parse(request.params);
+    return application.inspections.stop(id);
+  });
 
   server.get("/tests", async () => ({ tests: application.tests.list() }));
   server.post<{ Body: unknown }>("/tests", async (request, reply) => {

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
-import { api, type ActionDescriptor, type Definition, type Locator, type RunRecord, type Step, type TestRecord, type TestSummary } from "./api";
+import { api, type ActionDescriptor, type Definition, type InspectionSession, type Locator, type RunRecord, type Step, type TestRecord, type TestSummary } from "./api";
 import "./style.css";
 import "./editor.css";
 
@@ -11,7 +11,7 @@ function duration(value: number | null): string { return value == null ? "—" :
 function Status({ value }: { value: string }) { return <span className={`status status-${value.toLowerCase()}`}>{value.toUpperCase()}</span>; }
 
 function Shell({ children }: { children: React.ReactNode }) {
-  return <div className="app-shell"><header className="topbar"><Link className="brand" to="/tests"><span className="brand-mark">K</span><span>Krino</span></Link><span className="local-label"><i /> Local workspace</span></header><div className="layout"><aside className="sidebar"><div className="side-label">WORKSPACE</div><Link className="nav-link active" to="/tests">▦ <span>Tests</span></Link><div className="side-note">Local runs · Chromium</div></aside><main>{children}</main></div></div>;
+  return <div className="app-shell"><header className="topbar"><Link className="brand" to="/tests"><span className="brand-mark">K</span><span>Krino</span></Link><span className="local-label"><i /> Local workspace</span></header><div className="layout"><aside className="sidebar"><div className="side-label">WORKSPACE</div><Link className="nav-link" to="/tests">▦ <span>Tests</span></Link><Link className="nav-link" to="/inspector">⌖ <span>Element Inspector</span></Link><div className="side-note">Local runs · Chromium</div></aside><main>{children}</main></div></div>;
 }
 function PageTitle({ eyebrow, title, children }: { eyebrow?: React.ReactNode; title: string; children?: React.ReactNode }) {
   return <div className="page-title"><div>{eyebrow && <div className="eyebrow">{eyebrow}</div>}<h1>{title}</h1></div>{children && <div>{children}</div>}</div>;
@@ -27,6 +27,46 @@ export function TestList() {
   return <Shell><div className="content"><PageTitle eyebrow="WORKSPACE" title="Tests"><Link className="button primary" to="/tests/new">＋ Create test</Link></PageTitle>
     {error && <InlineError>{error}</InlineError>}
     {loading ? <div className="panel muted">Loading tests…</div> : tests.length === 0 ? <div className="empty panel"><div className="empty-icon">＋</div><h2>No tests yet</h2><p>Create a test definition and run it against your local application.</p><Link className="button primary" to="/tests/new">Create your first test</Link></div> : <div className="panel table-panel"><div className="table-heading"><span>Test</span><span>Last run</span><span>Updated</span><span>Actions</span></div>{tests.map((test) => <div className="test-row" key={test.id}><div className="test-identity"><span className="test-glyph">▤</span><div><strong>{test.name}</strong><code>{test.id}</code></div></div><div className="last-run">{latest[test.id] ? <><Status value={latest[test.id]!.status} /><span>{date(latest[test.id]!.startedAt)}</span></> : <span className="muted">Never run</span>}</div><div className="muted">{date(test.updatedAt)}</div><div className="row-actions"><Link className="button small" to={`/tests/${encodeURIComponent(test.id)}/edit`}>Edit</Link><button className="button small run-button" disabled={running === test.id} onClick={() => void run(test.id)}>{running === test.id ? "Running…" : "▶ Run"}</button></div></div>)}</div>}
+  </div></Shell>;
+}
+
+export function InspectorPage() {
+  const [targetUrl, setTargetUrl] = useState("");
+  const [browserMode, setBrowserMode] = useState<"headed" | "headless">("headed");
+  const [session, setSession] = useState<InspectionSession | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const sessionId = React.useRef("");
+  useEffect(() => {
+    if (!session?.id || session.status !== "running") return;
+    let mounted = true;
+    const timer = window.setInterval(() => {
+      void api.getInspection(session.id).then((next) => { if (mounted) { setSession(next); if (next.error) setError(next.error); } }).catch((e) => { if (mounted) setError(errorMessage(e)); });
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [session?.id, session?.status]);
+  useEffect(() => () => { const id = sessionId.current; if (id) void api.stopInspection(id).catch(() => undefined); }, []);
+  const start = async () => {
+    setBusy(true); setError("");
+    try { const next = await api.startInspection(targetUrl, browserMode); sessionId.current = next.id; setSession(next); }
+    catch (e) { setError(errorMessage(e)); }
+    finally { setBusy(false); }
+  };
+  const stop = async () => {
+    if (!session) return; setBusy(true); setError("");
+    try { const next = await api.stopInspection(session.id); setSession(next); sessionId.current = ""; }
+    catch (e) { setError(errorMessage(e)); }
+    finally { setBusy(false); }
+  };
+  return <Shell><div className="content"><PageTitle eyebrow="DISCOVERY" title="Element Inspector" />
+    {error && <InlineError>{error}</InlineError>}
+    {!session || session.status === "stopped" ? <section className="panel inspector-form"><div className="section-heading"><div><h2>Start an inspection</h2><p>Open a local visible Chromium window and select a page element.</p></div></div><label>Target URL<input aria-label="Target URL" type="url" value={targetUrl} onChange={(event) => setTargetUrl(event.target.value)} placeholder="http://127.0.0.1:4173" /></label><label>Browser<select aria-label="Inspector browser mode" value={browserMode} onChange={(event) => setBrowserMode(event.target.value as "headed" | "headless")}><option value="headed">Visible</option><option value="headless">Headless</option></select></label><button className="button primary" disabled={busy || !targetUrl.trim()} onClick={() => void start()}>{busy ? "Starting…" : "Start inspection"}</button></section> : <>
+      <section className="panel inspection-status"><div><span className="eyebrow">INSPECTION STATUS</span><strong>{session.status === "running" ? "RUNNING" : session.status.toUpperCase()}</strong></div><div><span className="eyebrow">BROWSER</span><strong>{session.browserMode === "headed" ? "Visible Chromium" : "Headless Chromium"}</strong></div><div><span className="eyebrow">TARGET</span><code>{session.targetUrl}</code></div><div><span className="eyebrow">SESSION</span><code>{session.id.slice(0, 8)}</code></div></section>
+      {session.status === "running" && <p className="inspection-instructions">Use the opened browser and click an element to inspect it. The selected click is intercepted.</p>}
+      {session.status === "error" && <InlineError>{session.error ?? "The inspection session failed."}</InlineError>}
+      {session.selectedElement ? <section className="panel inspected-element"><div className="section-heading"><div><h2>Selected element</h2><p>Structured information from the selected page element</p></div></div><div className="element-fields">{([ ["Tag", session.selectedElement.tagName], ["Text", session.selectedElement.text], ["Role", session.selectedElement.role], ["Accessible name", session.selectedElement.accessibleName], ["Label", session.selectedElement.label], ["Placeholder", session.selectedElement.placeholder], ["Test ID", session.selectedElement.testId], ["Name", session.selectedElement.name], ["ID", session.selectedElement.id], ["Type", session.selectedElement.type], ["Href", session.selectedElement.href], ["CSS", session.selectedElement.cssSelector] ] as const).filter(([, value]) => value !== undefined).map(([label, value]) => <p key={label}><span>{label}</span><code>{value || ""}</code></p>)}</div><h3>Locator candidates</h3>{session.selectedElement.locatorCandidates.length ? session.selectedElement.locatorCandidates.map((candidate, index) => <div className="candidate-row" key={`${candidate.strategy}-${index}`}><strong>{candidate.strategy === "testId" ? "Test ID" : candidate.strategy === "css" ? "CSS" : candidate.strategy === "role" ? "Role" : candidate.strategy === "label" ? "Label" : "Text"}</strong><code>{candidate.strategy === "role" ? `${candidate.role} / ${candidate.name}` : candidate.value}</code></div>) : <p className="muted">No locator candidates available.</p>}</section> : session.status === "running" && <section className="panel inspector-empty"><h2>No element selected yet</h2><p>Hover an element in Chromium, then click it to inspect its metadata.</p></section>}
+      <div className="inspector-actions">{session.status === "running" && <button className="button" onClick={() => setSession({ ...session, selectedElement: undefined })}>Inspect another element</button>}<button className="button danger-text" disabled={busy} onClick={() => void stop()}>{busy ? "Stopping…" : "Stop inspection"}</button></div>
+    </>}
   </div></Shell>;
 }
 
@@ -99,7 +139,7 @@ export function RunDetail() {
 function locatorSummary(locator: Locator): string { return locator.strategy === "role" ? `${locator.role} “${locator.name}”` : `${locator.strategy}: ${locator.value}`; }
 function NotFound() { return <Shell><div className="content"><PageTitle title="Page not found" /><Link className="button" to="/tests">Go to tests</Link></div></Shell>; }
 
-export function App() { return <BrowserRouter><Routes><Route path="/" element={<TestList />} /><Route path="/tests" element={<TestList />} /><Route path="/tests/new" element={<Editor />} /><Route path="/tests/:id/edit" element={<Editor />} /><Route path="/runs/:id" element={<RunDetail />} /><Route path="*" element={<NotFound />} /></Routes></BrowserRouter>; }
+export function App() { return <BrowserRouter><Routes><Route path="/" element={<TestList />} /><Route path="/tests" element={<TestList />} /><Route path="/inspector" element={<InspectorPage />} /><Route path="/tests/new" element={<Editor />} /><Route path="/tests/:id/edit" element={<Editor />} /><Route path="/runs/:id" element={<RunDetail />} /><Route path="*" element={<NotFound />} /></Routes></BrowserRouter>; }
 
 const rootElement = document.getElementById("root");
 if (rootElement) createRoot(rootElement).render(<React.StrictMode><App /></React.StrictMode>);

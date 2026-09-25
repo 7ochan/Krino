@@ -77,6 +77,9 @@ POST   /tests
 GET    /tests/:id
 PUT    /tests/:id
 DELETE /tests/:id
+POST   /inspections
+GET    /inspections/:id
+POST   /inspections/:id/stop
 POST   /tests/:id/runs
 GET    /runs/:id
 GET    /tests/:id/runs
@@ -103,6 +106,12 @@ The UI is available at `http://127.0.0.1:5173` while `pnpm dev` is running. It s
 
 Headless is the default and runs the browser invisibly. Select Visible before running to launch a visible Chromium window on this desktop, useful for debugging and watching tests execute. Visible runs are intended for local desktop execution and are recorded in the run report.
 
+## Element Inspector
+
+Open **Element Inspector** in the UI, enter a target URL, and start an inspection to open a local Chromium session. Click an element in that window to see its tag, available accessible metadata, CSS selector, and locator candidates in Krino. The selected click is intercepted to avoid submitting forms or following links. Inspection sessions stay open until stopped, the UI page is left, or the one-hour safety timeout expires. This feature reports element information; it does not create test steps.
+
+The API remains loopback-only. The inspection worker uses the same Playwright Chromium launcher and blocks ordinary browser requests outside the target origin. Cross-origin iframes cannot be inspected and their resources are blocked; browser chrome is outside the page; shadow DOM internals and complex accessibility name computation are not fully supported. Browser same-origin restrictions remain in force.
+
 ## Current limits
 
-This milestone supports only the registered actions (`navigate`, `fill`, `click`, `assertVisible`, and `assertText`); one Chromium run at a time; and versioned JSON definitions authored through a small form. There is no background queue, remote agent, CI integration, custom addons, AI, or locator healing.
+This milestone supports only the registered actions (`navigate`, `fill`, `click`, `assertVisible`, and `assertText`); one Chromium run at a time; and versioned JSON definitions authored through a small form. There is no background queue, remote agent, CI integration, custom addons, AI, or locator healing. Inspector discovery is separate from test execution and does not record actions or generate tests.

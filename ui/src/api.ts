@@ -30,6 +30,9 @@ export interface RunRecord {
   artifacts: Artifact[]; error?: { name: string; message: string };
 }
 export interface ActionDescriptor { id: Step["action"]; displayName: string }
+export type LocatorCandidate = { strategy: "role"; role: string; name: string } | { strategy: "label" | "text" | "testId" | "css"; value: string };
+export interface InspectedElement { schemaVersion: 1; tagName: string; text?: string; role?: string; accessibleName?: string; label?: string; placeholder?: string; testId?: string; name?: string; id?: string; type?: string; href?: string; cssSelector: string; locatorCandidates: LocatorCandidate[] }
+export interface InspectionSession { id: string; targetUrl: string; browserMode: "headless" | "headed"; status: "starting" | "running" | "stopped" | "error"; createdAt: string; selectedElement?: InspectedElement; error?: string }
 
 interface ApiErrorPayload { error?: { message?: string; code?: string } }
 export class ApiError extends Error {
@@ -58,4 +61,7 @@ export const api = {
   getRun(id: string) { return request<RunRecord>(`/runs/${encodeURIComponent(id)}`); },
   async getTestRuns(id: string) { return (await request<{ runs: RunRecord[] }>(`/tests/${encodeURIComponent(id)}/runs`)).runs; },
   async getActions() { return (await request<{ actions: ActionDescriptor[] }>("/actions")).actions; },
+  startInspection(targetUrl: string, browserMode: "headed" | "headless") { return request<InspectionSession>("/inspections", { method: "POST", body: JSON.stringify({ targetUrl, browserMode }) }); },
+  getInspection(id: string) { return request<InspectionSession>(`/inspections/${encodeURIComponent(id)}`); },
+  stopInspection(id: string) { return request<InspectionSession>(`/inspections/${encodeURIComponent(id)}/stop`, { method: "POST" }); },
 };

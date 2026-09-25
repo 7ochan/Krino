@@ -79,7 +79,7 @@ after(async () => {
     if (viteProcess.exitCode === null) { viteProcess.kill('SIGKILL'); await waitForExit(); }
   }
   try { await apiServer?.close(); } catch (error) { cleanupErrors.push(error); }
-  try { application?.close(); } catch (error) { cleanupErrors.push(error); }
+  try { await application?.close(); } catch (error) { cleanupErrors.push(error); }
   try { await fixture?.close(); } catch (error) { cleanupErrors.push(error); }
   try { if (dataDirectory) await rm(dataDirectory, { recursive: true, force: true }); } catch (error) { cleanupErrors.push(error); }
   if (cleanupErrors.length) throw new AggregateError(cleanupErrors, 'E2E services did not close cleanly');
@@ -220,4 +220,19 @@ test('UI can launch a visible Chromium run and report its browser mode', { skip:
   await page.getByRole('heading', { name: 'Visible browser fixture run' }).waitFor();
   await page.locator('.run-status-block').getByText('PASSED').waitFor();
   await page.locator('.run-summary').getByText('Visible').waitFor();
+});
+
+test('Element Inspector starts a visible fixture session, returns element data to UI, and stops cleanly', { skip: headedDisplayAvailable ? false : 'No desktop display is available for headed Chromium', timeout: 45_000 }, async () => {
+  await page.goto(`${frontendUrl}/inspector`);
+  await page.getByRole('heading', { name: 'Element Inspector' }).waitFor();
+  await page.getByLabel('Target URL').fill(`${fixture.url}/inspect?select=email`);
+  await page.getByLabel('Inspector browser mode').selectOption('headed');
+  await page.getByRole('button', { name: 'Start inspection' }).click();
+  await page.getByText('RUNNING').waitFor();
+  await page.getByRole('heading', { name: 'Selected element' }).waitFor({ timeout: 15_000 });
+  await page.getByText('textbox / Email').waitFor();
+  await page.getByText('Enter email').waitFor();
+  await page.locator('.element-fields code').filter({ hasText: '#email' }).waitFor();
+  await page.getByRole('button', { name: 'Stop inspection' }).click();
+  await page.getByText('Start an inspection').waitFor();
 });

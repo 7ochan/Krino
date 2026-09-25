@@ -5,7 +5,7 @@ import { App } from "./main";
 import { api, type ActionDescriptor, type Definition, type RunRecord, type TestRecord } from "./api";
 
 vi.mock("./api", async (importOriginal) => ({ ...(await importOriginal<typeof import("./api")>()), api: {
-  getTests: vi.fn(), getTest: vi.fn(), getTestRuns: vi.fn(), getActions: vi.fn(), createTest: vi.fn(), updateTest: vi.fn(), deleteTest: vi.fn(), runTest: vi.fn(), getRun: vi.fn(),
+  getTests: vi.fn(), getTest: vi.fn(), getTestRuns: vi.fn(), getActions: vi.fn(), createTest: vi.fn(), updateTest: vi.fn(), deleteTest: vi.fn(), runTest: vi.fn(), getRun: vi.fn(), startInspection: vi.fn(), getInspection: vi.fn(), stopInspection: vi.fn(),
 } }));
 
 const def = (name = "Login flow"): Definition => ({ schemaVersion: 1, id: "login-flow", name, target: { baseUrl: "http://127.0.0.1:4173", stepTimeoutMs: 10000, runTimeoutMs: 300000 }, steps: [{ id: "open-login", action: "navigate", url: "/login" }] });
@@ -74,5 +74,32 @@ describe("Krino UI", () => {
     mocked.getTest.mockResolvedValue(record()); mocked.getTestRuns.mockResolvedValue([run]); mocked.deleteTest.mockResolvedValue(undefined);
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true); render(<App />); await screen.findByText("Run history"); await user.click(screen.getByRole("button", { name: "Delete test" }));
     expect(confirm).toHaveBeenCalledWith("Delete this test? Its existing run history will be retained."); expect(mocked.deleteTest).toHaveBeenCalledWith("login-flow");
+  });
+
+  it("starts an inspection, displays selected element data, and stops the session", async () => {
+    window.history.replaceState({}, "", "/inspector"); const user = userEvent.setup();
+    const running = { id: "inspection-1", targetUrl: "http://127.0.0.1:4173/inspect", browserMode: "headed" as const, status: "running" as const, createdAt: "2026-09-25T00:00:00Z" };
+    mocked.startInspection.mockResolvedValue(running);
+    mocked.getInspection.mockResolvedValue({ ...running, selectedElement: { schemaVersion: 1, tagName: "input", role: "textbox", label: "Email", accessibleName: "Email", placeholder: "Enter email", testId: "email", cssSelector: "#email", locatorCandidates: [{ strategy: "label", value: "Email" }, { strategy: "role", role: "textbox", name: "Email" }, { strategy: "testId", value: "email" }, { strategy: "css", value: "#email" }] } });
+    mocked.stopInspection.mockResolvedValue({ ...running, status: "stopped" });
+    render(<App />); await screen.findByRole("heading", { name: "Element Inspector" });
+    await user.type(screen.getByLabelText("Target URL"), "http://127.0.0.1:4173/inspect");
+    await user.click(screen.getByRole("button", { name: "Start inspection" }));
+    expect(await screen.findByText("RUNNING")).toBeInTheDocument();
+    expect(await screen.findByText("Selected element")).toBeInTheDocument();
+    expect(screen.getByText("textbox / Email")).toBeInTheDocument();
+    expect(screen.getByText("Enter email")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Stop inspection" }));
+    await waitFor(() => expect(mocked.stopInspection).toHaveBeenCalledWith("inspection-1"));
+    expect(await screen.findByText("Start an inspection")).toBeInTheDocument();
+  });
+
+  it("shows an inspector start error", async () => {
+    window.history.replaceState({}, "", "/inspector"); const user = userEvent.setup();
+    mocked.startInspection.mockRejectedValueOnce(new Error("Target URL must use http or https"));
+    render(<App />); await screen.findByRole("heading", { name: "Element Inspector" });
+    await user.type(screen.getByLabelText("Target URL"), "file:///etc/passwd");
+    await user.click(screen.getByRole("button", { name: "Start inspection" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Target URL must use http or https");
   });
 });

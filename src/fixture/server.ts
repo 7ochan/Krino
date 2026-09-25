@@ -46,6 +46,14 @@ export async function startFixtureServer(port = 0): Promise<FixtureServer> {
       sendHtml(response, 200, loginPage.replace("{{ERROR}}", ""));
       return;
     }
+    if (request.method === "GET" && pathname === "/inspect") {
+      const url = new URL(request.url ?? "/", "http://127.0.0.1");
+      const autoSelect = url.searchParams.get("select");
+      const autoScript = autoSelect ? `<script>setTimeout(() => document.getElementById(${JSON.stringify(autoSelect)})?.click(), 400)</script>` : "";
+      sendHtml(response, 200, `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Inspector fixture</title></head><body><form action="/submitted" method="get"><label>Email <input id="email" name="email" type="email" placeholder="Enter email" data-testid="email"></label><button id="save" type="submit">Save changes</button></form>${autoScript}</body></html>`);
+      return;
+    }
+    if (request.method === "GET" && pathname === "/submitted") { sendHtml(response, 200, "<!doctype html><title>Submitted</title><h1>Submitted</h1>"); return; }
     if (request.method === "POST" && pathname === "/login") {
       let body = "";
       for await (const chunk of request) body += chunk.toString();

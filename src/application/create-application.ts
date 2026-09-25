@@ -3,6 +3,7 @@ import { SqliteRunRepository } from "../db/run-repository.js";
 import { SqliteTestRepository } from "../db/test-repository.js";
 import { ExecutionService } from "./execution-service.js";
 import { TestService } from "./test-service.js";
+import { InspectionService } from "../inspection/session.js";
 import type { TestDefinition } from "../definition.js";
 import type { WorkerMessage } from "../protocol.js";
 
@@ -27,10 +28,12 @@ export function createApplication(options: CreateApplicationOptions = {}) {
     ...(options.onRunCreated ? { onRunCreated: options.onRunCreated } : {}),
     ...(options.onWorkerMessage ? { onWorkerMessage: options.onWorkerMessage } : {}),
   });
+  const inspections = new InspectionService();
   return {
     database,
     tests,
     execution,
+    inspections,
     runs: {
       get(id: string) { return runRepository.get(id); },
       listForTest(testId: string) {
@@ -38,6 +41,6 @@ export function createApplication(options: CreateApplicationOptions = {}) {
         return runRepository.listForTest(testId);
       },
     },
-    close: database.close,
+    async close() { await inspections.close(); database.close(); },
   };
 }
