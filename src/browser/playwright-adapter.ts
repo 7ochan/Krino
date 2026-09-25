@@ -7,6 +7,8 @@ import type { BrowserPort, FailureArtifacts } from "./port.js";
 import { DEFAULT_BROWSER_MODE, type BrowserMode } from "./port.js";
 
 const DIAGNOSTIC_TIMEOUT_MS = 10_000;
+// Let visible runs unfold at a pace a person can follow; headless runs stay unpaced.
+export const HEADED_SLOW_MO_MS = 400;
 
 function toLocator(page: Page, descriptor: LocatorDescriptor): Locator {
   switch (descriptor.strategy) {
@@ -112,14 +114,18 @@ class PlaywrightBrowserPort implements BrowserPort {
   }
 }
 
-export function playwrightLaunchOptions(browserMode: BrowserMode = DEFAULT_BROWSER_MODE) {
-  return { headless: browserMode === "headless", timeout: 30_000 } as const;
+export function playwrightLaunchOptions(browserMode: BrowserMode = DEFAULT_BROWSER_MODE, slowMoMs = browserMode === "headed" ? HEADED_SLOW_MO_MS : 0) {
+  return {
+    headless: browserMode === "headless",
+    timeout: 30_000,
+    ...(slowMoMs > 0 ? { slowMo: slowMoMs } : {}),
+  } as const;
 }
 
 interface PlaywrightPageSession { browser: Browser; context: BrowserContext; page: Page }
 
-async function launchPlaywrightPage(baseUrl: string, extraAllowedOrigins: string[] = [], browserMode: BrowserMode = DEFAULT_BROWSER_MODE): Promise<PlaywrightPageSession> {
-  const browser = await chromium.launch(playwrightLaunchOptions(browserMode));
+async function launchPlaywrightPage(baseUrl: string, extraAllowedOrigins: string[] = [], browserMode: BrowserMode = DEFAULT_BROWSER_MODE, slowMoMs?: number): Promise<PlaywrightPageSession> {
+  const browser = await chromium.launch(slowMoMs === undefined ? playwrightLaunchOptions(browserMode) : playwrightLaunchOptions(browserMode, slowMoMs));
   let context: BrowserContext | undefined;
   try {
     context = await browser.newContext();
@@ -272,7 +278,7 @@ const inspectionScript = (targetOrigin: string) => {
 };
 
 export async function launchInspectionBrowser(targetUrl: string, browserMode: BrowserMode = "headed"): Promise<InspectionBrowser> {
-  const { browser, context, page } = await launchPlaywrightPage(targetUrl, [], browserMode);
+  const { browser, context, page } = await launchPlaywrightPage(targetUrl, [], browserMode, 0);
   try {
     await context.addInitScript(inspectionScript, new URL(targetUrl).origin);
     const inspection: InspectionBrowser = {

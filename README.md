@@ -104,7 +104,7 @@ The UI is available at `http://127.0.0.1:5173` while `pnpm dev` is running. It s
 
 ## Browser execution modes
 
-Headless is the default and runs the browser invisibly. Select Visible before running to launch a visible Chromium window on this desktop, useful for debugging and watching tests execute. Visible runs are intended for local desktop execution and are recorded in the run report.
+Headless is the default and runs the browser invisibly. Select Visible before running to launch a visible Chromium window on this desktop, useful for debugging and watching tests execute. Visible actions run with Playwright's 400 ms slow motion so a short test can be followed on screen; Chromium closes when the run completes. Browser mode is recorded in the run report.
 
 ## Element Inspector
 

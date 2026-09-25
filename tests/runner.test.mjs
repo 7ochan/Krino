@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -84,7 +84,7 @@ test('browser mode defaults to headless, accepts both modes, rejects invalid val
   assert.throws(() => runRequestSchema.parse({ ...request, browserMode: 'remote' }));
   assert.deepEqual(playwrightLaunchOptions(), { headless: true, timeout: 30_000 });
   assert.deepEqual(playwrightLaunchOptions('headless'), { headless: true, timeout: 30_000 });
-  assert.deepEqual(playwrightLaunchOptions('headed'), { headless: false, timeout: 30_000 });
+  assert.deepEqual(playwrightLaunchOptions('headed'), { headless: false, timeout: 30_000, slowMo: 400 });
 });
 
 test('rejects invalid definitions before browser execution', () => {
@@ -239,15 +239,31 @@ const headedDisplayAvailable = process.platform === 'darwin' || Boolean(process.
 test('runs a real headed Chromium execution against the local fixture', { skip: headedDisplayAvailable ? false : 'No desktop display is available for headed Chromium' }, async () => {
   const definition = parseTestDefinition(sampleDefinition());
   const runId = 'headed-fixture-run';
+  let chromeProcessAtFirstStep = '';
   const result = await runInChild({
     runId,
     definition,
     browserMode: 'headed',
     artifactsDirectory: join(temporaryDirectory, runId),
     workerPath: join(repositoryRoot, 'dist', 'worker.js'),
+    onMessage(message) {
+      if (process.platform === 'darwin' && message.type === 'STEP_STARTED' && !chromeProcessAtFirstStep) {
+        chromeProcessAtFirstStep = execFileSync('/bin/ps', ['-Ao', 'pid,ppid,command'], { encoding: 'utf8' })
+          .split('\n').find((line) => /Google Chrome for Testing|Chromium\.app/i.test(line) && !/chrome_crashpad_handler/i.test(line)) ?? '';
+      }
+    },
   });
   assert.equal(result.status, 'passed', result.error?.message);
   assert.equal(result.steps.length, 6);
+  assert.ok(result.durationMs >= 1_000, 'headed execution should stay open at a human-visible pace while the steps run');
+  if (process.platform === 'darwin') {
+    assert.match(chromeProcessAtFirstStep, /Google Chrome for Testing|Chromium\.app/, 'headed child-worker run must launch a live GUI Chromium process before executing steps');
+    assert.doesNotMatch(chromeProcessAtFirstStep, /--headless(?:=\w+)?(?:\s|$)/, 'the live headed Chromium process must not have a headless switch');
+    const userDataDirectory = chromeProcessAtFirstStep.match(/--user-data-dir=([^\s]+)/)?.[1];
+    assert.ok(userDataDirectory, 'Playwright should launch Chromium with an isolated temporary profile');
+    const processSnapshotAfterClose = execFileSync('/bin/ps', ['-Ao', 'pid,ppid,command'], { encoding: 'utf8' });
+    assert.ok(!processSnapshotAfterClose.includes(userDataDirectory), 'Playwright should close the run-specific Chromium process after a run completes');
+  }
 });
 
 test('failed assertion stops execution, skips remaining steps, captures screenshot and trace, exits nonzero, and cleans up child', async () => {
