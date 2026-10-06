@@ -1,6 +1,6 @@
 # Krino
 
-Krino is a private, local-first web test automation application. The local React/TypeScript UI manages versioned definitions and run history through the loopback-only Fastify API. Browser execution remains local in the existing Playwright child process; there is no remote agent or hosted service.
+Krino is a private, local-first web test automation application. The local React/TypeScript UI manages versioned definitions and run history through the loopback-only Fastify API. Browser execution remains local in an isolated Playwright child process; there is no remote agent or hosted service.
 
 ## Prerequisites
 
@@ -39,7 +39,7 @@ To exercise failure reporting, run the deliberately failing example:
 pnpm krino run examples/login-failing.json
 ```
 
-The CLI uses the same application execution service as the API. It persists/updates the test definition by its test ID and records each run in SQLite while keeping the existing exit codes and artifact output.
+The CLI uses the same application execution service as the API. It persists or updates the test definition by its test ID and records each run in SQLite while keeping the existing exit codes and artifact output.
 
 The test suite starts an ephemeral local fixture automatically. It also starts an isolated API and Vite server and drives a real headless Chromium session through the UI:
 
