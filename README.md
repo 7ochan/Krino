@@ -9,6 +9,8 @@ Krino is a private, local-first web test automation application. The local React
 - Chromium dependencies supported by Playwright on your operating system
 - Native build tools required by `better-sqlite3` on platforms without a compatible prebuilt binary
 
+> **macOS note:** headed (Visible) execution launches a real Chromium window on your desktop. No additional setup is required beyond `pnpm exec playwright install chromium`.
+
 ## Install
 
 ```sh
@@ -18,6 +20,8 @@ pnpm build
 ```
 
 The SQLite file is created at `.krino/krino.sqlite`; run artifacts remain under `.krino/artifacts/<run-id>/`. Both are ignored by Git. Set `KRINO_DATA_DIR` to move the local data directory, or `KRINO_DB_PATH` to override only the database file path.
+
+Schema migrations run automatically on first start. No manual migration step is required.
 
 ## Run the fixture and tests
 
