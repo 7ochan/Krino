@@ -18,20 +18,57 @@ function isWithin(parent: string, candidate: string): boolean {
 export class SqliteRunRepository implements RunRepository {
   constructor(private readonly database: KrinoDatabase) {}
 
-  create(input: { id: string; testId: string; testName: string; definition: TestDefinition; browserMode: StoredRun["browserMode"]; startedAt: string }): void {
+  enqueue(input: { id: string; testId: string; testName: string; definition: TestDefinition; browserMode: StoredRun["browserMode"]; startedAt: string }): void {
     this.database.orm.insert(runs).values({
       id: input.id,
       testId: input.testId,
       testName: input.testName,
       definitionSnapshot: JSON.stringify(input.definition),
       browserMode: input.browserMode,
-      status: "running",
+      status: "queued",
       startedAt: input.startedAt,
+      leaseOwner: null,
+      leaseExpiresAt: null,
       finishedAt: null,
       durationMs: null,
       error: null,
       incompleteSteps: "[]",
     }).run();
+  }
+
+  claimNext(input: { owner: string; leaseExpiresAt: string; now: string }): StoredRun | null {
+    return this.database.raw.transaction(() => {
+      const candidate = this.database.raw.prepare("SELECT id FROM runs WHERE status = 'queued' ORDER BY started_at ASC, id ASC LIMIT 1").get() as { id: string } | undefined;
+      if (!candidate) return null;
+      const claimed = this.database.raw.prepare(`
+        UPDATE runs
+        SET status = 'running', lease_owner = ?, lease_expires_at = ?
+        WHERE id = ? AND status = 'queued'
+          AND NOT EXISTS (
+            SELECT 1 FROM runs
+            WHERE status = 'running' AND lease_expires_at IS NOT NULL AND lease_expires_at > ?
+          )
+      `).run(input.owner, input.leaseExpiresAt, candidate.id, input.now);
+      return claimed.changes === 1 ? this.get(candidate.id) : null;
+    })();
+  }
+
+  reconcileExpiredLeases(now: string): number {
+    const abandoned = this.database.raw.prepare(`
+      SELECT id, started_at FROM runs
+      WHERE status = 'running' AND (lease_expires_at IS NULL OR lease_expires_at <= ?)
+    `).all(now) as Array<{ id: string; started_at: string }>;
+    if (abandoned.length === 0) return 0;
+    const message = JSON.stringify({ name: "WorkerLeaseExpiredError", message: "Execution worker lease expired before a terminal result was persisted" });
+    this.database.raw.transaction(() => {
+      const update = this.database.raw.prepare(`
+        UPDATE runs
+        SET status = 'error', finished_at = ?, duration_ms = ?, error = ?, incomplete_steps = '[]', lease_owner = NULL, lease_expires_at = NULL
+        WHERE id = ?
+      `);
+      for (const run of abandoned) update.run(now, Math.max(0, Date.parse(now) - Date.parse(run.started_at)), message, run.id);
+    })();
+    return abandoned.length;
   }
 
   finish(result: RunResult, artifactRoot: string, resultArtifactError?: string): RunResult {
@@ -75,6 +112,8 @@ export class SqliteRunRepository implements RunRepository {
         durationMs: result.durationMs,
         error: result.error ? JSON.stringify(result.error) : null,
         incompleteSteps: JSON.stringify(result.incompleteSteps ?? []),
+        leaseOwner: null,
+        leaseExpiresAt: null,
       }).where(eq(runs.id, result.runId)).run();
 
       this.database.orm.delete(stepResults).where(eq(stepResults.runId, result.runId)).run();
@@ -145,6 +184,8 @@ export class SqliteRunRepository implements RunRepository {
       browserMode: row.browserMode,
       status: row.status,
       startedAt: row.startedAt,
+      leaseOwner: row.leaseOwner,
+      leaseExpiresAt: row.leaseExpiresAt,
       finishedAt: row.finishedAt,
       durationMs: row.durationMs,
       ...(error ? { error } : {}),

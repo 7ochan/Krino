@@ -1,9 +1,9 @@
 import { createInterface } from "node:readline";
 import { launchInspectionBrowser } from "../browser/playwright-adapter.js";
 import { PROTOCOL_VERSION } from "../protocol.js";
-import { inspectionRequestSchema, inspectedElementSchema, inspectionCommandSchema, type InspectionWorkerMessage } from "./protocol.js";
+import { inspectionRequestSchema, inspectedElementSchema, inspectionCommandSchema, inspectionWorkerMessageSchema, type InspectionWorkerMessage } from "./protocol.js";
 
-const send = (message: InspectionWorkerMessage) => process.stdout.write(`${JSON.stringify(message)}\n`);
+const send = (message: unknown) => process.stdout.write(`${JSON.stringify(inspectionWorkerMessageSchema.parse(message))}\n`);
 const input = createInterface({ input: process.stdin, crlfDelay: Infinity });
 let accepted = false;
 let stopping = false;

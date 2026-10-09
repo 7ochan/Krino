@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import type { TestDefinition } from "./definition.js";
 import { DEFAULT_BROWSER_MODE, type BrowserMode } from "./browser/port.js";
 import type { IncompleteStep, RunResult, StepResult } from "./engine.js";
-import { PROTOCOL_VERSION, type WorkerMessage } from "./protocol.js";
+import { PROTOCOL_VERSION, runRequestSchema, workerMessageSchema, type WorkerMessage } from "./protocol.js";
 
 export const WORKER_STARTUP_TIMEOUT_MS = 30_000;
 export const WORKER_CLEANUP_GRACE_MS = 15_000;
@@ -98,11 +98,7 @@ export function runInChild(options: ChildRunOptions): Promise<RunResult> {
     const handleMessage = (line: string): void => {
       let message: WorkerMessage;
       try {
-        const parsed: unknown = JSON.parse(line);
-        if (typeof parsed !== "object" || parsed === null || !("type" in parsed) || !("protocolVersion" in parsed) || parsed.protocolVersion !== PROTOCOL_VERSION) {
-          throw new Error("Invalid worker protocol envelope");
-        }
-        message = parsed as WorkerMessage;
+        message = workerMessageSchema.parse(JSON.parse(line));
         if ("runId" in message && message.runId !== runId && message.runId !== null) {
           throw new Error("Worker response runId did not match the requested run");
         }

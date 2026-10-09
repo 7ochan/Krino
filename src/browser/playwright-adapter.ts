@@ -2,7 +2,9 @@ import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from "playwright";
 import { expect } from "playwright/test";
-import type { LocatorDescriptor, TargetDefinition } from "../definition.js";
+import type { TargetDefinition } from "../definition.js";
+import type { LocatorDescriptor } from "../locator.js";
+import type { InspectedElement } from "../inspection/protocol.js";
 import type { BrowserPort, FailureArtifacts } from "./port.js";
 import { DEFAULT_BROWSER_MODE, type BrowserMode } from "./port.js";
 
@@ -159,30 +161,6 @@ export async function launchPlaywrightBrowser(target: TargetDefinition, browserM
   }
 }
 
-export interface InspectionCandidate {
-  strategy: "role" | "label" | "text" | "testId" | "css";
-  value?: string;
-  role?: string;
-  name?: string;
-}
-
-export interface InspectedElement {
-  schemaVersion: 1;
-  tagName: string;
-  text?: string;
-  role?: string;
-  accessibleName?: string;
-  label?: string;
-  placeholder?: string;
-  testId?: string;
-  name?: string;
-  id?: string;
-  type?: string;
-  href?: string;
-  cssSelector: string;
-  locatorCandidates: InspectionCandidate[];
-}
-
 export interface InspectionBrowser {
   navigate(url: string, timeoutMs?: number): Promise<void>;
   waitForSelection(onSelection: (element: InspectedElement) => void): Promise<void>;
@@ -257,11 +235,11 @@ const inspectionScript = (targetOrigin: string) => {
     if (id) result.id = id;
     if (element instanceof HTMLAnchorElement && element.href) result.href = element.href;
     const candidates: Array<Record<string, string>> = result.locatorCandidates as Array<Record<string, string>>;
-    if (role && accessibleName && ["button", "heading", "link", "textbox"].includes(role)) candidates.push({ strategy: "role", role, name: accessibleName });
-    if (label) candidates.push({ strategy: "label", value: label });
-    if (text) candidates.push({ strategy: "text", value: text });
-    if (testId) candidates.push({ strategy: "testId", value: testId });
-    candidates.push({ strategy: "css", value: cssSelector });
+    if (role && accessibleName && ["button", "heading", "link", "textbox"].includes(role)) candidates.push({ strategy: "role", role, name: accessibleName, provenance: "recorded" });
+    if (label) candidates.push({ strategy: "label", value: label, provenance: "recorded" });
+    if (text) candidates.push({ strategy: "text", value: text, provenance: "recorded" });
+    if (testId) candidates.push({ strategy: "testId", value: testId, provenance: "recorded" });
+    candidates.push({ strategy: "css", value: cssSelector, provenance: "recorded" });
     return result;
   };
   document.addEventListener("pointerover", (event) => {

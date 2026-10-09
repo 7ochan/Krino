@@ -1,19 +1,12 @@
 import { z } from "zod";
 import { browserModeSchema, PROTOCOL_VERSION } from "../protocol.js";
-
-const candidateSchema = z.discriminatedUnion("strategy", [
-  z.object({ strategy: z.literal("role"), role: z.string().min(1), name: z.string().min(1) }).strict(),
-  z.object({ strategy: z.literal("label"), value: z.string().min(1) }).strict(),
-  z.object({ strategy: z.literal("text"), value: z.string().min(1) }).strict(),
-  z.object({ strategy: z.literal("testId"), value: z.string().min(1) }).strict(),
-  z.object({ strategy: z.literal("css"), value: z.string().min(1) }).strict(),
-]);
+import { locatorCandidateSchema } from "../locator.js";
 
 export const inspectedElementSchema = z.object({
   schemaVersion: z.literal(1), tagName: z.string().min(1), text: z.string().optional(), role: z.string().optional(),
   accessibleName: z.string().optional(), label: z.string().optional(), placeholder: z.string().optional(), testId: z.string().optional(),
   name: z.string().optional(), id: z.string().optional(), type: z.string().optional(), href: z.string().url().optional(),
-  cssSelector: z.string().min(1), locatorCandidates: z.array(candidateSchema),
+  cssSelector: z.string().min(1), locatorCandidates: z.array(locatorCandidateSchema),
 }).strict();
 export type InspectedElement = z.infer<typeof inspectedElementSchema>;
 

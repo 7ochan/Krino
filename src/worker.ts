@@ -2,10 +2,10 @@ import { createInterface } from "node:readline";
 import { launchPlaywrightBrowser } from "./browser/playwright-adapter.js";
 import { executeDefinition } from "./engine.js";
 import { parseTestDefinition } from "./definition.js";
-import { PROTOCOL_VERSION, runRequestSchema, type WorkerMessage } from "./protocol.js";
+import { PROTOCOL_VERSION, runRequestSchema, workerMessageSchema, type WorkerMessage } from "./protocol.js";
 
-function send(message: WorkerMessage): void {
-  process.stdout.write(`${JSON.stringify(message)}\n`);
+function send(message: unknown): void {
+  process.stdout.write(`${JSON.stringify(workerMessageSchema.parse(message))}\n`);
 }
 
 const input = createInterface({ input: process.stdin, crlfDelay: Infinity });
@@ -13,7 +13,7 @@ let acceptedRequest = false;
 
 input.on("line", async (line) => {
   if (acceptedRequest) {
-    send({ type: "RUN_ERROR", protocolVersion: PROTOCOL_VERSION, runId: null, message: "Worker accepts exactly one request" });
+    send({ type: "RUN_ERROR", protocolVersion: PROTOCOL_VERSION, runId: null, message: "Worker accepts exactly one request" } satisfies WorkerMessage);
     return;
   }
   acceptedRequest = true;

@@ -25,12 +25,12 @@ export interface StepResult {
 export interface Artifact { type: "screenshot" | "trace" | "result"; status: "created" | "failed"; filename?: string; createdAt: string; error?: string }
 export interface RunRecord {
   id: string; testId: string | null; testName: string; definition: Definition; browserMode: "headless" | "headed";
-  status: "running" | "passed" | "failed" | "error"; startedAt: string; finishedAt: string | null;
+  status: "queued" | "running" | "passed" | "failed" | "error"; startedAt: string; leaseOwner?: string | null; leaseExpiresAt?: string | null; finishedAt: string | null;
   durationMs: number | null; steps: StepResult[]; incompleteSteps?: Array<{ stepId: string; action: string; index: number; startTime: string }>;
   artifacts: Artifact[]; error?: { name: string; message: string };
 }
-export interface ActionDescriptor { id: Step["action"]; displayName: string }
-export type LocatorCandidate = { strategy: "role"; role: string; name: string } | { strategy: "label" | "text" | "testId" | "css"; value: string };
+export interface ActionDescriptor { id: Step["action"]; displayName: string; editor?: { kind: "navigate" | "target" | "targetWithValue" | "targetWithText" } }
+export type LocatorCandidate = ({ strategy: "role"; role: "button" | "heading" | "link" | "textbox"; name: string; exact?: boolean } | { strategy: "label" | "text"; value: string; exact?: boolean } | { strategy: "testId" | "css"; value: string }) & { provenance?: "authored" | "recorded" | "suggested" };
 export interface InspectedElement { schemaVersion: 1; tagName: string; text?: string; role?: string; accessibleName?: string; label?: string; placeholder?: string; testId?: string; name?: string; id?: string; type?: string; href?: string; cssSelector: string; locatorCandidates: LocatorCandidate[] }
 export interface InspectionSession { id: string; targetUrl: string; browserMode: "headless" | "headed"; status: "starting" | "running" | "stopped" | "error"; createdAt: string; selectedElement?: InspectedElement; error?: string }
 

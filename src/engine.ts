@@ -14,7 +14,7 @@ export interface StepResult {
   startTime: string | null;
   endTime: string | null;
   durationMs: number;
-  error?: { name: string; message: string };
+  error?: { name: string; message: string } | undefined;
 }
 
 export interface IncompleteStep {
@@ -34,9 +34,9 @@ export interface RunResult {
   endTime: string;
   durationMs: number;
   steps: StepResult[];
-  incompleteSteps?: IncompleteStep[];
-  artifacts?: FailureArtifacts;
-  error?: { name: string; message: string };
+  incompleteSteps?: IncompleteStep[] | undefined;
+  artifacts?: FailureArtifacts | undefined;
+  error?: { name: string; message: string } | undefined;
 }
 
 export type ExecutionEvent =

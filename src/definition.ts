@@ -1,44 +1,9 @@
 import { z } from "zod";
+import { actionStepSchema, actionIds, type TestStep } from "./actions.js";
+import { locatorSchema, type LocatorDescriptor } from "./locator.js";
 
 const nonEmpty = z.string().trim().min(1);
-const locatorRole = z.enum(["button", "heading", "link", "textbox"]);
-
-const roleLocator = z.object({
-  strategy: z.literal("role"),
-  role: locatorRole,
-  name: nonEmpty,
-  exact: z.boolean().optional(),
-}).strict();
-
-const labelLocator = z.object({
-  strategy: z.literal("label"),
-  value: nonEmpty,
-  exact: z.boolean().optional(),
-}).strict();
-
-const textLocator = z.object({
-  strategy: z.literal("text"),
-  value: nonEmpty,
-  exact: z.boolean().optional(),
-}).strict();
-
-const testIdLocator = z.object({
-  strategy: z.literal("testId"),
-  value: nonEmpty,
-}).strict();
-
-const cssLocator = z.object({
-  strategy: z.literal("css"),
-  value: nonEmpty,
-}).strict();
-
-export const locatorSchema = z.discriminatedUnion("strategy", [
-  roleLocator,
-  labelLocator,
-  textLocator,
-  testIdLocator,
-  cssLocator,
-]);
+export { locatorSchema } from "./locator.js";
 
 const targetUrl = z.string().url().refine((value) => {
   // z.string().url() reports malformed input. Keep this refinement safe because
@@ -67,50 +32,7 @@ export const targetSchema = z.object({
 
 const stepId = nonEmpty.max(120);
 
-export const navigateStepSchema = z.object({
-  id: stepId,
-  action: z.literal("navigate"),
-  url: nonEmpty,
-}).strict();
-
-const fillValueSchema = z.object({
-  kind: z.literal("literal"),
-  value: z.string(),
-}).strict();
-
-export const fillStepSchema = z.object({
-  id: stepId,
-  action: z.literal("fill"),
-  target: locatorSchema,
-  value: fillValueSchema,
-}).strict();
-
-export const clickStepSchema = z.object({
-  id: stepId,
-  action: z.literal("click"),
-  target: locatorSchema,
-}).strict();
-
-export const assertVisibleStepSchema = z.object({
-  id: stepId,
-  action: z.literal("assertVisible"),
-  target: locatorSchema,
-}).strict();
-
-export const assertTextStepSchema = z.object({
-  id: stepId,
-  action: z.literal("assertText"),
-  target: locatorSchema,
-  text: nonEmpty,
-}).strict();
-
-export const stepSchema = z.discriminatedUnion("action", [
-  navigateStepSchema,
-  fillStepSchema,
-  clickStepSchema,
-  assertVisibleStepSchema,
-  assertTextStepSchema,
-]);
+export const stepSchema = actionStepSchema;
 
 export const testDefinitionSchema = z.object({
   schemaVersion: z.literal(1),
@@ -132,18 +54,10 @@ export const testDefinitionSchema = z.object({
   });
 });
 
-export type LocatorDescriptor = z.infer<typeof locatorSchema>;
+export type { LocatorDescriptor } from "./locator.js";
 export type TargetDefinition = z.infer<typeof targetSchema>;
-export type TestStep = z.infer<typeof stepSchema>;
+export type { TestStep } from "./actions.js";
 export type TestDefinition = z.infer<typeof testDefinitionSchema>;
-
-const ACTION_IDS = new Set([
-  "navigate",
-  "fill",
-  "click",
-  "assertVisible",
-  "assertText",
-]);
 
 export class DefinitionValidationError extends Error {
   constructor(message: string) {
@@ -155,7 +69,7 @@ export class DefinitionValidationError extends Error {
 export function parseTestDefinition(input: unknown): TestDefinition {
   if (typeof input === "object" && input !== null && "steps" in input && Array.isArray(input.steps)) {
     for (const [index, step] of input.steps.entries()) {
-      if (typeof step === "object" && step !== null && "action" in step && typeof step.action === "string" && !ACTION_IDS.has(step.action)) {
+      if (typeof step === "object" && step !== null && "action" in step && typeof step.action === "string" && !actionIds.has(step.action)) {
         throw new DefinitionValidationError(`Unknown action "${step.action}" at steps[${index}].action`);
       }
     }

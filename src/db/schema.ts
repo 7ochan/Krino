@@ -15,13 +15,15 @@ export const runs = sqliteTable("runs", {
   testName: text("test_name").notNull(),
   definitionSnapshot: text("definition_snapshot").notNull(),
   browserMode: text("browser_mode", { enum: ["headless", "headed"] }).notNull().default("headless"),
-  status: text("status", { enum: ["running", "passed", "failed", "error"] }).notNull(),
+  status: text("status", { enum: ["queued", "running", "passed", "failed", "error"] }).notNull(),
   startedAt: text("started_at").notNull(),
+  leaseOwner: text("lease_owner"),
+  leaseExpiresAt: text("lease_expires_at"),
   finishedAt: text("finished_at"),
   durationMs: integer("duration_ms"),
   error: text("error"),
   incompleteSteps: text("incomplete_steps").notNull().default("[]"),
-}, (table) => [index("runs_test_started_idx").on(table.testId, table.startedAt)]);
+}, (table) => [index("runs_test_started_idx").on(table.testId, table.startedAt), index("runs_queue_idx").on(table.status, table.startedAt)]);
 
 export const stepResults = sqliteTable("step_results", {
   id: integer("id").primaryKey({ autoIncrement: true }),

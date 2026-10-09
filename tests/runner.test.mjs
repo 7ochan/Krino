@@ -249,7 +249,7 @@ test('runs a real headed Chromium execution against the local fixture', { skip: 
     onMessage(message) {
       if (process.platform === 'darwin' && message.type === 'STEP_STARTED' && !chromeProcessAtFirstStep) {
         chromeProcessAtFirstStep = execFileSync('/bin/ps', ['-Ao', 'pid,ppid,command'], { encoding: 'utf8' })
-          .split('\n').find((line) => /Google Chrome for Testing|Chromium\.app/i.test(line) && !/chrome_crashpad_handler/i.test(line)) ?? '';
+          .split('\n').find((line) => /Google Chrome for Testing|Chromium\.app/i.test(line) && !/chrome_crashpad_handler|Helper/i.test(line)) ?? '';
       }
     },
   });

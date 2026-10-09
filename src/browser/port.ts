@@ -1,12 +1,12 @@
-import type { LocatorDescriptor } from "../definition.js";
+import type { LocatorDescriptor } from "../locator.js";
 
 export const BROWSER_MODES = ["headless", "headed"] as const;
 export type BrowserMode = typeof BROWSER_MODES[number];
 export const DEFAULT_BROWSER_MODE: BrowserMode = "headless";
 
 export interface FailureArtifacts {
-  screenshotPath?: string;
-  tracePath?: string;
+  screenshotPath?: string | undefined;
+  tracePath?: string | undefined;
   errors: string[];
 }
 

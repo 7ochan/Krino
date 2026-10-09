@@ -13,8 +13,10 @@ export interface RunResponse {
   testName: string;
   definition: StoredRun["definition"];
   browserMode: StoredRun["browserMode"];
-  status: RunResult["status"] | "running";
+  status: RunResult["status"] | "queued" | "running";
   startedAt: string;
+  leaseOwner: string | null;
+  leaseExpiresAt: string | null;
   finishedAt: string | null;
   durationMs: number | null;
   steps: StoredRun["steps"];
@@ -36,6 +38,8 @@ export function toRunResponse(run: StoredRun): RunResponse {
     browserMode: run.browserMode,
     status: run.status,
     startedAt: run.startedAt,
+    leaseOwner: run.leaseOwner,
+    leaseExpiresAt: run.leaseExpiresAt,
     finishedAt: run.finishedAt,
     durationMs: run.durationMs,
     steps: run.steps,

@@ -41,6 +41,6 @@ export function createApplication(options: CreateApplicationOptions = {}) {
         return runRepository.listForTest(testId);
       },
     },
-    async close() { await inspections.close(); database.close(); },
+    async close() { await inspections.close(); await execution.close(); database.close(); },
   };
 }

@@ -28,8 +28,10 @@ export interface StoredRun {
   testName: string;
   definition: TestDefinition;
   browserMode: BrowserMode;
-  status: RunResult["status"] | "running";
+  status: RunResult["status"] | "queued" | "running";
   startedAt: string;
+  leaseOwner: string | null;
+  leaseExpiresAt: string | null;
   finishedAt: string | null;
   durationMs: number | null;
   error?: { name: string; message: string };
@@ -49,7 +51,9 @@ export interface TestRepository {
 }
 
 export interface RunRepository {
-  create(input: { id: string; testId: string; testName: string; definition: TestDefinition; browserMode: BrowserMode; startedAt: string }): void;
+  enqueue(input: { id: string; testId: string; testName: string; definition: TestDefinition; browserMode: BrowserMode; startedAt: string }): void;
+  claimNext(input: { owner: string; leaseExpiresAt: string; now: string }): StoredRun | null;
+  reconcileExpiredLeases(now: string): number;
   finish(result: RunResult, artifactRoot: string, resultArtifactError?: string): RunResult;
   get(id: string): StoredRun | null;
   listForTest(testId: string, limit?: number): StoredRun[];
